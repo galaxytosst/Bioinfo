@@ -7,6 +7,7 @@ Schritt für Schritt Bioinformatik mit Python lernen, an echten biologischen Bei
 | `00_python_grundlagen/` | Teil 0: Python-Grundlagen (Basen zählen, Transkription, GC-Gehalt, Reverse Complement, Translation, FASTA) + Sequenz-Umwandler + Strang-Vergleich |
 | `01_alignment/` | Teil 1: Paarweises Alignment, Needleman-Wunsch (global) und Smith-Waterman (lokal) |
 | `02_orf_finder/` | Teil 2: ORF-Finder für alle 6 Leseraster, getestet an den 10 Genen von pPCP1 |
+| `03_phylogenie/` | Teil 3: Stammbaum aus Distanzen (UPGMA, Neighbor-Joining) für 12 Frauenschuh-Orchideen |
 
 **Öffnen in Colab:** colab.research.google.com → *Datei → Notebook öffnen* → Reiter **GitHub** → dieses Repository auswählen.
 
