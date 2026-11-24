@@ -1,0 +1,3 @@
+Die Genome von drei Coronaviren (je ca. 30.000 Basen): SARS-CoV-2 (2019), SARS-CoV-1 (2003) und MERS-CoV (2012). Die Sequenzen stehen nur als Nummern in accessions.txt und werden beim ersten Start automatisch von NCBI geladen. Dafür ist Internet nötig, in Colab funktioniert das.
+
+Erwartung: Die Genome sind zu lang für ein Alignment in Python, deshalb wird der Stammbaum mit der schnelleren k-mer-Distanz berechnet. Die beiden SARS-Viren sollten näher beieinander stehen als zu MERS. Die k-mer-Distanz ist bei so verschiedenen Genomen aber nur eine grobe Schätzung. Der ORF-Finder findet unter anderem das riesige ORF1a (über 4.000 Aminosäuren) und das Spike-Protein von SARS-CoV-2 (1.273 Aminosäuren).

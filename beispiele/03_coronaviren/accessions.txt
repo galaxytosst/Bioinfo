@@ -1,0 +1,4 @@
+# Diese Genome werden beim ersten Start automatisch von NCBI geladen (Internet nötig)
+NC_045512.2   # SARS-CoV-2, Wuhan-Hu-1 (2019)
+NC_004718.3   # SARS-CoV-1, Stamm Tor2 (2003)
+NC_019843.3   # MERS-CoV, HCoV-EMC/2012

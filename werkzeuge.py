@@ -60,6 +60,7 @@ _ABKUERZUNGEN = {
     "Severe acute respiratory syndrome coronavirus 2": "SARS-CoV-2",
     "Severe acute respiratory syndrome-related coronavirus": "SARS-CoV",
     "Severe acute respiratory syndrome coronavirus": "SARS-CoV",
+    "Middle East respiratory syndrome-related coronavirus": "MERS-CoV",
     "Middle East respiratory syndrome coronavirus": "MERS-CoV",
     "Human immunodeficiency virus 1": "HIV-1",
 }
@@ -74,11 +75,17 @@ def beschriftung(kopfzeile, max_zeichen=45):
     if not _ACCESSION.match(name) or len(teile) < 2:
         return name
     text = _re.sub(r"\[.*?\]", "", teile[1])                     # [Organismus]-Angaben am Ende weg
+    text = _re.sub(r"^(PREDICTED|UNVERIFIED|TPA):\s*", "", text)
     text = text.split(",")[0]                                       # ", complete genome" usw. weg
     text = _re.split(r" (isolate|strain|str\.|clone|chromosome|genomic sequence|complete) ", " " + text + " ")[0]
     text = text.strip() or teile[1].strip()
     for lang, kurz in _ABKUERZUNGEN.items():
         text = text.replace(lang, kurz)
+    # "Homo sapiens hemoglobin subunit beta (HBB)" → "Homo sapiens HBB"
+    ohne_praefix = _re.sub(r"^(PREDICTED|UNVERIFIED|TPA):\s*", "", teile[1])
+    gen = _re.match(r"^([A-Z][a-z]+ [a-z]+)\b[^()]*\(([A-Za-z0-9-]+)\),? *(mRNA|gene|transcript)?", ohne_praefix)
+    if gen:
+        text = f"{gen.group(1)} {gen.group(2)}"
     if len(text) > max_zeichen:
         text = text[:max_zeichen - 1].rstrip() + "…"
     return f"{text} ({name})"
@@ -117,6 +124,30 @@ def lese_ordner(ordner):
             alle[eindeutig] = seq
             herkunft[eindeutig] = datei
     return alle, herkunft
+
+
+def lade_von_ncbi(accessions, ordner):
+    """Lädt Nukleotidsequenzen per NCBI-Accession als FASTA in den Ordner (eine Datei pro Nummer).
+    Gibt Liste von (accession, fehlertext_oder_None) zurück. Braucht Internet (z. B. in Colab)."""
+    import time
+    import urllib.request
+    os.makedirs(ordner, exist_ok=True)
+    ergebnis = []
+    for acc in accessions:
+        url = ("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore"
+               f"&id={acc}&rettype=fasta&retmode=text")
+        try:
+            with urllib.request.urlopen(url, timeout=60) as antwort:
+                text = antwort.read().decode()
+            if not text.startswith(">"):
+                raise ValueError("Antwort ist keine FASTA-Datei")
+            with open(os.path.join(ordner, acc + ".fasta"), "w") as f:
+                f.write(text)
+            ergebnis.append((acc, None))
+        except Exception as fehler:
+            ergebnis.append((acc, str(fehler)))
+        time.sleep(0.4)                       # NCBI erlaubt ohne Anmeldung ca. 3 Anfragen pro Sekunde
+    return ergebnis
 
 
 def transkribiere(dna):
@@ -230,7 +261,135 @@ def smith_waterman(s1, s2, match=1, mismatch=-1, gap=-2):
     return {"score": bester, "a1": a1, "a2": a2, "start1": i + 1, "start2": j + 1}
 
 
+# ----------------------------------------------------------------------
+# Schnelles Alignment mit affiner Lückenstrafe (Gotoh-Algorithmus, mit numpy)
+# ----------------------------------------------------------------------
+# Warum? Bei der einfachen (linearen) Strafe kostet jede Lückenposition gleich viel. Dann ist es
+# für den Algorithmus egal, ob er EINE Lücke von 3 Basen macht oder drei verstreute Lücken von je
+# 1 Base. Verstreute 1-Basen-Lücken sehen in einem Gen aber aus wie Leseraster-Verschiebungen
+# (Frameshifts), die es in Wirklichkeit gar nicht gibt.
+# Affine Strafe: Eine Lücke der Länge L kostet  OEFFNEN + L × VERLAENGERN.
+# Das Öffnen ist teuer, das Verlängern billig, also entstehen wenige, zusammenhängende Lücken,
+# so wie echte Insertionen/Deletionen meist aussehen.
+# Standardwerte = Voreinstellung von NCBI BLASTN: Match +2, Mismatch −3, Öffnen 5, Verlängern 2.
+#
+# freie_enden=True: Lücken ganz am Anfang oder Ende kosten nichts ("semiglobal"). Das passt nur
+# für SEHR ähnliche Sequenzen, von denen eine länger ist. Vorsicht: Bei entfernt verwandten
+# Sequenzen gewinnt dann oft eine winzige Überlappung von wenigen Basen. Die Ordner-Analyse
+# benutzt deshalb das normale globale Alignment (freie_enden=False).
+
+def ausrichten(s1, s2, modus="global", match=2, mismatch=-3, luecke_oeffnen=5, luecke_verlaengern=2,
+               freie_enden=False):
+    """Alignment mit affiner Lückenstrafe. modus = "global" oder "lokal".
+    Gibt dict mit score, a1, a2, start1, start2 (ab 1) zurück, wie needleman_wunsch."""
+    import numpy as np
+    lokal = modus == "lokal"
+    n, m = len(s1), len(s2)
+    o, e = float(luecke_oeffnen), float(luecke_verlaengern)
+    NEG = -1e18
+    b2 = np.frombuffer(s2.encode(), dtype=np.uint8)
+    k_e = np.arange(m + 1) * e                     # für die Lücken innerhalb einer Zeile
+
+    # Zeiger pro Zelle (1 Byte): Bit 0-1 woher H kommt (0 Ende, 1 diagonal, 2 von oben, 3 von links),
+    # Bit 2: Lücke von oben wird verlängert, Bit 3: Lücke von links wird verlängert
+    zeiger = np.zeros((n + 1, m + 1), dtype=np.uint8)
+    if lokal or freie_enden:
+        H = np.zeros(m + 1)
+    else:
+        H = -(o + k_e); H[0] = 0.0
+        zeiger[0, 2:] = 3 | 8
+        if m:
+            zeiger[0, 1] = 3
+    F = np.full(m + 1, NEG)
+    bester, bi, bj = 0.0, 0, 0
+    for i in range(1, n + 1):
+        # Lücke von oben (Base aus s1 gegen "-"): öffnen oder verlängern
+        F_oeffnen = H - o - e
+        F_verl = F - e
+        F_ext = F_verl > F_oeffnen
+        F = np.where(F_ext, F_verl, F_oeffnen)
+        # diagonal (Match / Mismatch)
+        diag = np.full(m + 1, NEG)
+        diag[1:] = H[:-1] + np.where(b2 == ord(s1[i - 1]), match, mismatch)
+        Ht = np.maximum(diag, F)
+        quelle = np.where(diag >= F, 1, 2).astype(np.uint8)
+        if lokal:
+            null = Ht <= 0
+            Ht = np.where(null, 0.0, Ht); quelle[null] = 0
+        if lokal or freie_enden:
+            Ht[0] = 0.0; quelle[0] = 0
+        else:
+            Ht[0] = -(o + i * e); quelle[0] = 2
+        # Lücke von links (innerhalb der Zeile): E[j] = max über k<j von Ht[k] − o − (j−k)·e
+        Eg = np.full(m + 1, NEG)
+        Eg[1:] = np.maximum.accumulate(Ht[:-1] + k_e[:-1]) - o - k_e[1:]
+        E_ext = np.zeros(m + 1, dtype=bool)
+        E_ext[2:] = Eg[1:-1] - e > Ht[1:-1] - o - e
+        links = Eg > Ht
+        H = np.where(links, Eg, Ht)
+        quelle[links] = 3
+        zeiger[i] = quelle | (F_ext.astype(np.uint8) << 2) | (E_ext.astype(np.uint8) << 3)
+        if lokal:
+            j = int(np.argmax(H))
+            if H[j] > bester:
+                bester, bi, bj = float(H[j]), i, j
+        elif freie_enden and m > 0 and (i == 1 or H[m] > bester):
+            bester, bi, bj = float(H[m]), i, m      # bestes Ende in der letzten Spalte
+    if lokal:
+        i, j, score = bi, bj, bester
+    elif freie_enden and n > 0 and m > 0:
+        j_best = int(np.argmax(H))                  # bestes Ende in der letzten Zeile
+        if H[j_best] >= bester:
+            i, j, score = n, j_best, float(H[j_best])
+        else:
+            i, j, score = bi, bj, bester
+    elif freie_enden:
+        i, j, score = n, m, 0.0
+    else:
+        i, j, score = n, m, float(H[m])
+
+    a1, a2 = [], []
+    if freie_enden and not lokal:                  # überstehendes Ende ohne Strafe
+        for k in range(n, i, -1):
+            a1.append(s1[k - 1]); a2.append("-")
+        for k in range(m, j, -1):
+            a1.append("-"); a2.append(s2[k - 1])
+    zustand = 0                                    # 0 = H, 2 = Lücke von oben, 3 = Lücke von links
+    while i > 0 or j > 0:
+        z = int(zeiger[i, j])
+        if zustand == 0:
+            q = z & 3
+            if q == 0:                             # Anfang erreicht (lokal oder freie Enden)
+                break
+            if q == 1:
+                a1.append(s1[i - 1]); a2.append(s2[j - 1]); i -= 1; j -= 1
+                continue
+            zustand = q
+        if zustand == 2:
+            a1.append(s1[i - 1]); a2.append("-")
+            zustand = 2 if (z >> 2) & 1 else 0
+            i -= 1
+        else:
+            a1.append("-"); a2.append(s2[j - 1])
+            zustand = 3 if (z >> 3) & 1 else 0
+            j -= 1
+    if freie_enden and not lokal:                  # Anfang ohne Strafe
+        while i > 0:
+            a1.append(s1[i - 1]); a2.append("-"); i -= 1
+        while j > 0:
+            a1.append("-"); a2.append(s2[j - 1]); j -= 1
+    a1 = "".join(reversed(a1)); a2 = "".join(reversed(a2))
+    if score == int(score):
+        score = int(score)
+    return {"score": score, "a1": a1, "a2": a2, "start1": i + 1 if lokal else 1, "start2": j + 1 if lokal else 1}
+
+
 def alignment_statistik(a1, a2):
+    """Identität, Mismatches und Lücken im überlappenden Bereich.
+    Lücken ganz am Anfang/Ende zählen nicht: Dort ist eine Sequenz nur länger (z. B. längere mRNA-Enden)."""
+    spalten = [k for k in range(len(a1)) if a1[k] != "-" and a2[k] != "-"]
+    if spalten:
+        a1, a2 = a1[spalten[0]:spalten[-1] + 1], a2[spalten[0]:spalten[-1] + 1]
     matches = mismatches = luecken = 0
     for x, y in zip(a1, a2):
         if x == "-" or y == "-":
@@ -557,6 +716,24 @@ def finde_varianten(a1, a2):
     return varianten
 
 
+def normalisiere_indels(referenz, varianten):
+    """HGVS-Regel: Liegt eine Insertion/Deletion in einer Wiederholung (z. B. TTCTTT), ist ihre Position
+    mehrdeutig. Man gibt dann die am weitesten 3' (rechts) liegende Position an."""
+    for v in varianten:
+        if v["art"] == "Deletion":
+            a, b = v["start"], v["ende"]                     # ab 1, inklusive
+            while b < len(referenz) and referenz[b] == referenz[a - 1]:
+                a, b = a + 1, b + 1
+            v["start"], v["ende"], v["ref"] = a, b, referenz[a - 1:b]
+        elif v["art"] == "Insertion":
+            nach, ins = v["start"], v["alt"]                 # Insertion nach Position 'nach'
+            while nach < len(referenz) and referenz[nach] == ins[0]:
+                ins = ins[1:] + ins[0]
+                nach += 1
+            v["start"], v["ende"], v["alt"] = nach, nach + 1, ins
+    return varianten
+
+
 def _c_position(p, cds):
     """Position in HGVS-c.-Schreibweise: c.1 = A des Startcodons, c.-5 = 5 Basen davor, c.*3 = 3 Basen nach dem Stopp."""
     start, ende = cds
@@ -618,6 +795,30 @@ def wirkung_der_varianten(referenz, varianten, cds):
                 v["wirkung"] = f"In-frame ({laenge // 3} Aminosäure(n) {art}, Leseraster bleibt)"
             else:
                 v["wirkung"] = "Frameshift (Leserasterverschiebung, Protein ab hier verändert)"
+
+    # Zwei Lücken kurz hintereinander, die sich gegenseitig ausgleichen (z. B. −2 bp und +2 bp):
+    # Das Leseraster ist nur auf wenigen Basen verschoben. Bei verwandten Arten ist das meist
+    # ein Alignment-Artefakt (statt einiger Mismatches hat das Alignment zwei Lücken gesetzt).
+    indels = sorted((v for v in varianten if v["art"] != "SNV" and v["wirkung"].startswith("Frameshift")),
+                    key=lambda v: v["start"])
+    k = 0
+    while k < len(indels):
+        verschiebung, gruppe = 0, []
+        for w in indels[k:]:
+            if gruppe and w["start"] - gruppe[0]["start"] > 30:
+                break
+            verschiebung += len(w["alt"]) - len(w["ref"])
+            gruppe.append(w)
+            if verschiebung % 3 == 0:
+                break
+        if len(gruppe) > 1 and verschiebung % 3 == 0:
+            abstand = gruppe[-1]["start"] - gruppe[0]["start"]
+            for w in gruppe:
+                w["wirkung"] = (f"In-frame insgesamt (Frameshift nach {abstand} bp wieder ausgeglichen; "
+                                f"oft ein Alignment-Artefakt statt echter Lücken)")
+            k += len(gruppe)
+        else:
+            k += 1
     return varianten
 
 

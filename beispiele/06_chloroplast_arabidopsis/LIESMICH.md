@@ -1,0 +1,3 @@
+Das komplette Chloroplasten-Genom der Ackerschmalwand Arabidopsis thaliana (NCBI NC_000932.1, 154.478 Basen), des wichtigsten Modellorganismus der Pflanzenbiologie. Es zeigt, dass Statistik und ORF-Suche auch für große Sequenzen schnell funktionieren.
+
+Erwartung: niedriger GC-Gehalt (um 36 %, typisch für Chloroplasten) und Dutzende ORFs auf beiden Strängen. Die zwei längsten ORFs (je 2.294 Aminosäuren) sind das Gen ycf2, das zweimal vorkommt, weil es in den beiden gespiegelten Wiederholungsbereichen (inverted repeats) des Genoms liegt. Auch das Gen der großen RuBisCO-Untereinheit (rbcL, 479 Aminosäuren) wird gefunden, allerdings mit einem 21 Basen früheren Start (486 Aminosäuren): Der ORF-Finder nimmt immer das erste ATG.

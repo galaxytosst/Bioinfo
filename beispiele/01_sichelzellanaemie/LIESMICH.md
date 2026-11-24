@@ -1,0 +1,3 @@
+Hämoglobin β (HBB) des Menschen und vier bekannte krankheitsverursachende Mutationen. Referenz ist die echte mRNA NM_000518.5 von NCBI. Die vier Varianten wurden daraus künstlich erzeugt, indem genau die bekannte Mutation eingebaut wurde: HbS (Sichelzellanämie, c.20A>T, klassisch "Glu6Val"), HbC (c.19G>A, "Glu6Lys"), β-Thalassämie Codon 39 (c.118C>T, Stoppcodon) und β-Thalassämie Codon 41/42 (c.126_129delCTTT, Frameshift).
+
+Erwartung: Die Analyse findet das Gen, zeigt DNA → mRNA → Protein und ordnet die Mutationen als Missense, Missense, Nonsense und Frameshift ein. Hinweis: Die moderne HGVS-Schreibweise zählt das Start-Methionin mit, daher p.Glu7Val statt Glu6Val.

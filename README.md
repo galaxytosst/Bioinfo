@@ -8,9 +8,11 @@ Schritt für Schritt Bioinformatik mit Python lernen, an echten biologischen Bei
 | `01_alignment/` | Teil 1: Paarweises Alignment, Needleman-Wunsch (global) und Smith-Waterman (lokal) |
 | `02_orf_finder/` | Teil 2: ORF-Finder für alle 6 Leseraster, getestet an den 10 Genen von pPCP1 |
 | `03_phylogenie/` | Teil 3: Stammbaum aus Distanzen (UPGMA, Neighbor-Joining) für 12 Frauenschuh-Orchideen |
-| `daten/` | Deine Sequenzen für die Ordner-Analyse (FASTA). Beispiel: 12 Orchideen |
-| `beispiele/` | Weitere echte Beispieldaten, u. a. Chloroplasten-Genom von *Arabidopsis thaliana* (154 kb, NCBI NC_000932.1) |
-| `werkzeuge.py`, `analyse.py` | Alle Funktionen als Modul + automatische Ordner-Analyse inkl. Variantenanalyse (Abschnitt A im Werkzeuge-Notebook) |
+| `beispiele/` | Sechs Beispielprojekte, je ein Unterordner mit FASTA-Dateien, `LIESMICH.md` und `einstellungen.json`: Sichelzellanämie, Hämoglobin von 7 Arten, Coronaviren, Frauenschuh-Orchideen, Pest-Plasmid, Chloroplasten-Genom |
+| `daten/` | Platz für eigene Sequenzen (ein Unterordner pro Projekt) |
+| `werkzeuge.py` | Alle Funktionen als Modul (FASTA, Transkription, Translation, ORFs, Alignment inkl. affiner Lückenstrafe, Distanzen, Bäume, Varianten) |
+| `analyse.py` | Automatische Auswertung: `analysiere_ordner()` für ein Projekt, `analysiere_alle()` für viele Projekte |
+| `bericht.py` | Gemeinsamer HTML-Bericht mit Tabellen und Diagrammen |
 
 **Alle Werkzeuge mit einem Klick:** [Werkzeuge.ipynb in Colab öffnen](https://colab.research.google.com/github/galaxytosst/Bioinfo/blob/main/Werkzeuge.ipynb)
 

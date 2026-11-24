@@ -1,0 +1,7 @@
+{
+  "REFERENZ": "Homo sapiens HBB (NM_000518.5)",
+  "AUSSENGRUPPE": [
+    "Bos taurus HBB (NM_173917.2)"
+  ],
+  "MIN_IDENTITAET_VARIANTEN": 75
+}
