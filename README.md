@@ -9,6 +9,8 @@ Schritt für Schritt Bioinformatik mit Python lernen, an echten biologischen Bei
 | `02_orf_finder/` | Teil 2: ORF-Finder für alle 6 Leseraster, getestet an den 10 Genen von pPCP1 |
 | `03_phylogenie/` | Teil 3: Stammbaum aus Distanzen (UPGMA, Neighbor-Joining) für 12 Frauenschuh-Orchideen |
 
-**Öffnen in Colab:** colab.research.google.com → *Datei → Notebook öffnen* → Reiter **GitHub** → dieses Repository auswählen.
+**Alle Werkzeuge mit einem Klick:** [Werkzeuge.ipynb in Colab öffnen](https://colab.research.google.com/github/galaxytosst/Bioinfo/blob/main/Werkzeuge.ipynb)
+
+**Andere Notebooks öffnen:** colab.research.google.com → *Datei → Notebook öffnen* → Reiter **GitHub** → dieses Repository auswählen.
 
 Beispieldaten: *Yersinia pestis*-Plasmid pPCP1 (NCBI RefSeq NC_005816.1).
