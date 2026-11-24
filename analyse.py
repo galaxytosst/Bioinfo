@@ -61,10 +61,10 @@ def _k_automatisch(min_laenge):
 
 def _einstellungen(einstellungen, ordner=None):
     E = dict(STANDARD)
+    einstellungen = {k: v for k, v in einstellungen.items() if v is not None}   # None = "nicht gesetzt"
     if ordner and os.path.exists(os.path.join(ordner, "einstellungen.json")):
         with open(os.path.join(ordner, "einstellungen.json")) as f:
-            # Werte aus dem Aufruf haben Vorrang, außer sie sind None (= "nicht gesetzt")
-            einstellungen = {**json.load(f), **{k: v for k, v in einstellungen.items() if v is not None}}
+            einstellungen = {**json.load(f), **einstellungen}          # Werte aus dem Aufruf haben Vorrang
     for schluessel, wert in einstellungen.items():
         if schluessel not in E:
             raise ValueError(f"Unbekannte Einstellung: {schluessel}. Möglich: {', '.join(E)}")
