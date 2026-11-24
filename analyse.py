@@ -3,6 +3,8 @@
 
 Für JEDE Sequenz:      Länge, Basenzusammensetzung, GC-Gehalt, ORFs (mögliche Gene) + Proteine
 Für JEDES Paar:        Alignment (Needleman-Wunsch), Identität, Lücken; bei gleicher Länge Mutationsliste
+Gegen eine REFERENZ:   Variantenanalyse: Mutationen (auch Insertionen/Deletionen), Transkription + Translation,
+                       Wirkung auf das Protein (stumm, Missense, Nonsense, Frameshift ...)
 Für ALLE zusammen:     Distanzmatrix und Stammbaum (UPGMA + Neighbor-Joining), ab 3 Sequenzen
 
 Große Sequenzen: Statistik und ORF-Suche gehen auch für ganze Bakteriengenome (Millionen Basen).
@@ -20,9 +22,11 @@ import os
 import time
 
 from werkzeuge import (lese_ordner, gc_gehalt, zusammensetzung, finde_orfs, needleman_wunsch,
-                       alignment_statistik, alignment_als_text, mutationen, reverse_complement,
+                       alignment_statistik, alignment_als_text, reverse_complement,
                        distanz_aus_alignment, kmer_menge, kmer_distanz, upgma, neighbor_joining,
-                       newick, baum_als_text, zeichne_baum)
+                       newick, baum_als_text, zeichne_baum, transkribiere, uebersetze, finde_cds,
+                       finde_varianten, wirkung_der_varianten, variante_auf_referenz_position,
+                       vergleiche_proteine)
 
 STANDARD = {
     "ORF_MIN_AMINOSAEUREN": 100,          # kürzere ORFs ignorieren
@@ -31,7 +35,10 @@ STANDARD = {
     "MAX_ALIGN_ZELLEN_GESAMT": 150_000_000,  # Summe aller Länge1×Länge2; ca. 1–2 Minuten in Colab
     "MATCH": 1, "MISMATCH": -1, "GAP": -2,
     "KMER_K": None,                       # None = automatisch nach Sequenzlänge
-    "AUSSENGRUPPE": None,                 # Liste von Namen für den NJ-Baum, z. B. ["Cypripedium_calceolus"]
+    "AUSSENGRUPPE": None,
+    "REFERENZ": None,                     # Name der Referenzsequenz für die Variantenanalyse (None = erste Sequenz)
+    "CDS": None,                          # (start, ende) des Gens in der Referenz, ab 1; None = automatisch (längster ORF)
+    "MIN_IDENTITAET_VARIANTEN": 80,       # nur Sequenzen, die der Referenz mindestens so ähnlich sind (%)                 # Liste von Namen für den NJ-Baum, z. B. ["Cypripedium_calceolus"]
     "ZEIGE_GRAFIK": True,
 }
 
@@ -115,6 +122,7 @@ def analysiere_ordner(ordner, ausgabe_ordner="ergebnisse", **einstellungen):
                    if len(sequenzen[p[0]]) <= E["MAX_ALIGN_LAENGE"] and len(sequenzen[p[1]]) <= E["MAX_ALIGN_LAENGE"]]
     zellen = sum(len(sequenzen[a]) * len(sequenzen[b]) for a, b in alignierbar)
     distanzen_aln = {}
+    identitaeten = {}
 
     if not paare:
         _ausgabe(bericht, "Nur eine Sequenz, kein Vergleich möglich.")
@@ -131,7 +139,6 @@ def analysiere_ordner(ordner, ausgabe_ordner="ergebnisse", **einstellungen):
         k_test = 8
         mengen = {n: kmer_menge(sequenzen[n], k_test) for n in namen if len(sequenzen[n]) <= E["MAX_ALIGN_LAENGE"]}
         _ausgabe(bericht, f"{'Sequenz 1':<48} {'Sequenz 2':<48} {'Strang':<7} {'Identität':>9} {'Lücken':>7} {'Score':>7}")
-        mutationszeilen = []
         with open(os.path.join(ausgabe_ordner, "alignments.txt"), "w") as f:
             for nr, (a, b) in enumerate(alignierbar, 1):
                 s1, s2 = sequenzen[a], sequenzen[b]
@@ -149,24 +156,23 @@ def analysiere_ordner(ordner, ausgabe_ordner="ergebnisse", **einstellungen):
                 f.write(f"Score {erg['score']}, Identität {st['identitaet']:.1f} %, Mismatches {st['mismatches']}, "
                         f"Lücken {st['luecken']}\n\n")
                 f.write(alignment_als_text(erg) + "\n\n")
-                if len(s1) == len(s2) and st["luecken"] == 0:
-                    for m in mutationen(s1, s2):
-                        mutationszeilen.append(f"{a};{b};{m['position']};{m['von']};{m['zu']};{m['typ']};"
-                                               f"{m['codon']};{m['aminosaeure']};{m['wirkung']}\n")
-        if mutationszeilen:
-            with open(os.path.join(ausgabe_ordner, "mutationen.csv"), "w") as f:
-                f.write("sequenz1;sequenz2;position;von;zu;typ;codon;aminosaeure;wirkung\n")
-                f.writelines(mutationszeilen)
-            _ausgabe(bericht, f"→ {len(mutationszeilen)} Punktmutationen zwischen gleich langen Sequenzen: mutationen.csv")
+                identitaeten[(a, b)] = identitaeten[(b, a)] = st["identitaet"]
         _ausgabe(bericht, "→ Vollständige Alignments: alignments.txt")
         _ausgabe(bericht, "   Achtung: Ein globales Alignment findet IMMER ein Ergebnis. Bei DNA sind Identitäten unter")
         _ausgabe(bericht, "   etwa 50 % mit vielen Lücken auch zwischen zufälligen Sequenzen üblich, also kein Hinweis auf Verwandtschaft.")
         _ausgabe(bericht, "   Strang −(rc): Sequenz 2 passte als Reverse Complement besser und wurde so aligniert.")
 
-    # ------------------------------------------------------------ 4. Stammbaum
+    # ------------------------------------------------------------ 4. Variantenanalyse
     _ausgabe(bericht)
     _ausgabe(bericht, "=" * 78)
-    _ausgabe(bericht, "4. STAMMBAUM")
+    _ausgabe(bericht, "4. VARIANTENANALYSE: Mutationen gegenüber einer Referenz und ihre Wirkung")
+    _ausgabe(bericht, "=" * 78)
+    _variantenanalyse(sequenzen, namen, identitaeten, E, ausgabe_ordner, bericht)
+
+    # ------------------------------------------------------------ 5. Stammbaum
+    _ausgabe(bericht)
+    _ausgabe(bericht, "=" * 78)
+    _ausgabe(bericht, "5. STAMMBAUM")
     _ausgabe(bericht, "=" * 78)
     baeume = None
     if len(namen) < 3:
@@ -244,6 +250,101 @@ def analysiere_ordner(ordner, ausgabe_ordner="ergebnisse", **einstellungen):
     with open(os.path.join(ausgabe_ordner, "bericht.txt"), "w") as f:
         f.write("\n".join(bericht) + "\n")
     return {"sequenzen": sequenzen, "baeume": baeume}
+
+
+def _variantenanalyse(sequenzen, namen, identitaeten, E, ausgabe_ordner, bericht):
+    if len(namen) < 2:
+        _ausgabe(bericht, "Braucht mindestens 2 Sequenzen (Referenz + Variante).")
+        return
+    ref_name = E["REFERENZ"] or namen[0]
+    if ref_name not in sequenzen:
+        _ausgabe(bericht, f"⚠️ Referenz '{ref_name}' nicht gefunden. Vorhandene Namen: {', '.join(namen)}")
+        return
+    referenz = sequenzen[ref_name]
+    kandidaten = [n for n in namen if n != ref_name and identitaeten.get((ref_name, n)) is not None
+                  and identitaeten[(ref_name, n)] >= E["MIN_IDENTITAET_VARIANTEN"]]
+    uebersprungen = [n for n in namen if n != ref_name and n not in kandidaten]
+    if not kandidaten:
+        _ausgabe(bericht, f"Übersprungen: Keine Sequenz ist der Referenz '{ref_name}' zu mindestens "
+                          f"{E['MIN_IDENTITAET_VARIANTEN']} % ähnlich (oder die Sequenzen sind zu lang zum Alignieren).")
+        _ausgabe(bericht, "Die Variantenanalyse ist für Varianten DESSELBEN Gens gedacht, z. B. gesund vs. Mutation,")
+        _ausgabe(bericht, "oder dasselbe Gen von nah verwandten Arten. Mit REFERENZ = \"Name\" wählst du die Referenz.")
+        return
+
+    cds = tuple(E["CDS"]) if E["CDS"] else finde_cds(referenz)
+    _ausgabe(bericht, f"Referenz: {ref_name} ({len(referenz):,} bp)")
+    if cds and not E["CDS"] and (cds[1] - cds[0] + 1) < 0.5 * len(referenz):
+        _ausgabe(bericht, f"Kein eindeutiges Gen erkannt: Der längste ORF ({cds[0]}–{cds[1]}) deckt weniger als die Hälfte "
+                          f"der Referenz ab. Das spricht für nicht codierende DNA oder einen größeren Abschnitt mit "
+                          f"mehreren Genen.")
+        _ausgabe(bericht, "Es werden nur die Positionen der Mutationen gezeigt. Falls es doch ein Gen ist: CDS = (start, ende) einstellen.")
+        cds = None
+    elif cds is None:
+        _ausgabe(bericht, "Kein Gen (ORF ab 30 Aminosäuren) in der Referenz gefunden. Es werden nur die Positionen gezeigt.")
+    else:
+        cds_dna = referenz[cds[0] - 1:cds[1]]
+        mrna = transkribiere(cds_dna)
+        protein = uebersetze(cds_dna)
+        quelle = "eingestellt" if E["CDS"] else "automatisch erkannt als längster ORF"
+        _ausgabe(bericht, f"Gen (CDS): Position {cds[0]}–{cds[1]} ({quelle}), {len(protein)} Aminosäuren")
+        _ausgabe(bericht, "")
+        _ausgabe(bericht, "Vom Gen zum Protein (Referenz):")
+        _ausgabe(bericht, f"  DNA  (codierender Strang)  5'-{cds_dna[:45]}{'...' if len(cds_dna) > 45 else ''}-3'")
+        _ausgabe(bericht, f"  mRNA (Transkription T→U)   5'-{mrna[:45]}{'...' if len(mrna) > 45 else ''}-3'")
+        codons = " ".join(mrna[i:i + 3] for i in range(0, min(len(mrna), 30), 3))
+        aminos = " ".join(f"{a:^3}" for a in protein[:10])
+        _ausgabe(bericht, f"  Codons                        {codons}{' ...' if len(mrna) > 30 else ''}")
+        _ausgabe(bericht, f"  Protein (Translation)         {aminos}{' ...' if len(protein) > 10 else ''}")
+    if uebersprungen:
+        _ausgabe(bericht, f"\nNicht analysiert (zu unähnlich oder zu lang): {', '.join(uebersprungen)}")
+
+    csv = open(os.path.join(ausgabe_ordner, "varianten.csv"), "w")
+    csv.write("referenz;variante;art;position_referenz;ref;alt;c_notation;p_notation;wirkung\n")
+    faa = open(os.path.join(ausgabe_ordner, "proteine_varianten.fasta"), "w")
+    fmrna = open(os.path.join(ausgabe_ordner, "mrna_varianten.fasta"), "w")
+    if cds:
+        faa.write(f">{ref_name} (Referenz)\n{protein}\n")
+        fmrna.write(f">{ref_name} (Referenz)\n{mrna}\n")
+
+    for name in kandidaten:
+        variante = sequenzen[name]
+        rc = reverse_complement(variante)
+        k = 8
+        if len(kmer_menge(referenz, k) & kmer_menge(rc, k)) > len(kmer_menge(referenz, k) & kmer_menge(variante, k)):
+            variante = rc
+        erg = needleman_wunsch(referenz, variante, E["MATCH"], E["MISMATCH"], E["GAP"])
+        varianten = finde_varianten(erg["a1"], erg["a2"])
+        _ausgabe(bericht, f"\n▶ {name}: {len(varianten)} Unterschied(e) zur Referenz")
+        if cds:
+            wirkung_der_varianten(referenz, varianten, cds)
+        for nr_v, v in enumerate(varianten):
+            pos = f"{v['start']}" if v["start"] == v["ende"] or v["art"] == "Insertion" else f"{v['start']}-{v['ende']}"
+            if v["art"] == "SNV":
+                was = f"{v['ref']}→{v['alt']}"
+            elif v["art"] == "Deletion":
+                was = f"−{v['ref'][:12]}{'…' if len(v['ref']) > 12 else ''} ({len(v['ref'])} bp)"
+            else:
+                was = f"+{v['alt'][:12]}{'…' if len(v['alt']) > 12 else ''} ({len(v['alt'])} bp)"
+            if nr_v < 25:
+                _ausgabe(bericht, f"   {v['art']:<9} Pos. {pos:<11} {was:<22} {v.get('c', ''):<18} "
+                                  f"{v.get('p', ''):<14} {v.get('wirkung', '')}")
+            elif nr_v == 25:
+                _ausgabe(bericht, f"   ... und {len(varianten) - 25} weitere (alle in varianten.csv)")
+            csv.write(f"{ref_name};{name};{v['art']};{pos};{v['ref']};{v['alt']};{v.get('c', '')};"
+                      f"{v.get('p', '')};{v.get('wirkung', '')}\n")
+        if cds:
+            vstart = variante_auf_referenz_position(erg["a1"], erg["a2"], cds[0])
+            if vstart is None:
+                _ausgabe(bericht, "   Protein: Startcodon fehlt in der Variante (Deletion), kein Protein bestimmbar.")
+            else:
+                v_protein = uebersetze(variante[vstart - 1:])
+                v_mrna = transkribiere(variante[vstart - 1:vstart - 1 + 3 * (len(v_protein) + 1)])
+                _ausgabe(bericht, f"   Protein: {vergleiche_proteine(protein, v_protein)}")
+                faa.write(f">{name}\n{v_protein}\n")
+                fmrna.write(f">{name}\n{v_mrna}\n")
+    csv.close(); faa.close(); fmrna.close()
+    _ausgabe(bericht, "\n→ Alle Varianten: varianten.csv, Proteine: proteine_varianten.fasta, mRNAs: mrna_varianten.fasta")
+    _ausgabe(bericht, "   c. = Position im Gen (c.1 = A des Startcodons), p. = Aminosäure-Änderung (HGVS-Schreibweise)")
 
 
 if __name__ == "__main__":

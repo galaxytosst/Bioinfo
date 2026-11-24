@@ -496,3 +496,151 @@ def zeichne_baum(knoten, titel, ax):
     for seite in ("left", "right", "top"):
         ax.spines[seite].set_visible(False)
     ax.set_xlim(0, ax.get_xlim()[1] * 1.6)
+
+
+# ======================================================================
+# Variantenanalyse (Teil 4): Mutationen gegenüber einer Referenz und ihre Wirkung
+# ======================================================================
+
+DREIBUCHSTABEN = {"A": "Ala", "R": "Arg", "N": "Asn", "D": "Asp", "C": "Cys", "Q": "Gln", "E": "Glu", "G": "Gly",
+                  "H": "His", "I": "Ile", "L": "Leu", "K": "Lys", "M": "Met", "F": "Phe", "P": "Pro", "S": "Ser",
+                  "T": "Thr", "W": "Trp", "Y": "Tyr", "V": "Val", "*": "Ter", "X": "Xaa"}
+
+
+def finde_cds(dna, min_as=30):
+    """Codierende Sequenz (CDS) automatisch finden: längster ORF auf dem + Strang (ATG bis Stopp).
+    Gibt (start, ende) biologisch (ab 1, inkl. Stoppcodon) zurück oder None."""
+    orfs = [o for o in finde_orfs(dna, ("ATG",), min_as=min_as) if o["strang"] == "+"]
+    if not orfs:
+        return None
+    bester = max(orfs, key=lambda o: len(o["dna"]))
+    return bester["start"], bester["ende"]
+
+
+def finde_varianten(a1, a2):
+    """Liest aus einem Alignment (a1 = Referenz, a2 = Variante) alle Unterschiede.
+    Lücken am Anfang/Ende zählen nicht (die Sequenzen sind dort nur unterschiedlich lang).
+    Positionen beziehen sich auf die Referenz (ab 1)."""
+    spalten = [k for k in range(len(a1)) if a1[k] != "-" and a2[k] != "-"]
+    if not spalten:
+        return []
+    erste, letzte = spalten[0], spalten[-1]
+    varianten = []
+    rpos = 0
+    k = 0
+    while k < len(a1):
+        r, v = a1[k], a2[k]
+        if r != "-":
+            rpos += 1
+        if k < erste or k > letzte:
+            k += 1
+            continue
+        if r != "-" and v != "-":
+            if r != v and "N" not in (r, v):
+                varianten.append({"art": "SNV", "start": rpos, "ende": rpos, "ref": r, "alt": v})
+            k += 1
+        elif v == "-":                                   # Deletion: Basen fehlen in der Variante
+            start, geloescht = rpos, r
+            while k + 1 < len(a1) and a2[k + 1] == "-" and a1[k + 1] != "-":
+                k += 1
+                rpos += 1
+                geloescht += a1[k]
+            varianten.append({"art": "Deletion", "start": start, "ende": rpos, "ref": geloescht, "alt": ""})
+            k += 1
+        else:                                            # Insertion: zusätzliche Basen in der Variante
+            eingefuegt = v
+            while k + 1 < len(a1) and a1[k + 1] == "-":
+                k += 1
+                eingefuegt += a2[k]
+            varianten.append({"art": "Insertion", "start": rpos, "ende": rpos + 1, "ref": "", "alt": eingefuegt})
+            k += 1
+    return varianten
+
+
+def _c_position(p, cds):
+    """Position in HGVS-c.-Schreibweise: c.1 = A des Startcodons, c.-5 = 5 Basen davor, c.*3 = 3 Basen nach dem Stopp."""
+    start, ende = cds
+    if p < start:
+        return f"-{start - p}"
+    if p > ende:
+        return f"*{p - ende}"
+    return str(p - start + 1)
+
+
+def wirkung_der_varianten(referenz, varianten, cds):
+    """Ergänzt jede Variante um c.-Notation, p.-Notation und Wirkung (stumm, Missense, Nonsense, Frameshift ...)."""
+    start, ende = cds
+    snv_im_codon = {}
+    for v in varianten:
+        if v["art"] == "SNV" and start <= v["start"] <= ende:
+            snv_im_codon.setdefault((v["start"] - start) // 3, []).append(v)
+
+    for v in varianten:
+        if v["art"] == "SNV":
+            v["c"] = f"c.{_c_position(v['start'], cds)}{v['ref']}>{v['alt']}"
+            if not (start <= v["start"] <= ende):
+                v["p"], v["wirkung"] = "", "außerhalb des Gens (nicht codierend)"
+                continue
+            nr = (v["start"] - start) // 3
+            codon_start = start - 1 + nr * 3
+            ref_codon = referenz[codon_start:codon_start + 3]
+            alt_codon = list(ref_codon)
+            for andere in snv_im_codon[nr]:              # alle SNVs im selben Codon gemeinsam anwenden
+                alt_codon[andere["start"] - 1 - codon_start] = andere["alt"]
+            alt_codon = "".join(alt_codon)
+            as_ref, as_alt = CODON_TABELLE.get(ref_codon, "X"), CODON_TABELLE.get(alt_codon, "X")
+            v["codon"] = f"{ref_codon}>{alt_codon}"
+            name = f"{DREIBUCHSTABEN[as_ref]}{nr + 1}"
+            if as_ref == as_alt:
+                v["p"], v["wirkung"] = f"p.{name}=", "stumm (gleiche Aminosäure)"
+            elif as_alt == "*":
+                v["p"], v["wirkung"] = f"p.{name}*", "Nonsense (vorzeitiges Stoppcodon)"
+            elif as_ref == "*":
+                v["p"], v["wirkung"] = f"p.{name}{DREIBUCHSTABEN[as_alt]}ext", "Stoppverlust (Protein wird verlängert)"
+            elif nr == 0:
+                v["p"], v["wirkung"] = "p.Met1?", "Startcodon verändert (Protein entsteht evtl. nicht)"
+            else:
+                v["p"], v["wirkung"] = f"p.{name}{DREIBUCHSTABEN[as_alt]}", "Missense (andere Aminosäure)"
+        else:
+            laenge = len(v["ref"]) + len(v["alt"])
+            if v["art"] == "Deletion":
+                a, b = _c_position(v["start"], cds), _c_position(v["ende"], cds)
+                v["c"] = f"c.{a}del" if v["start"] == v["ende"] else f"c.{a}_{b}del"
+                im_gen = v["start"] <= ende and v["ende"] >= start
+            else:
+                v["c"] = f"c.{_c_position(v['start'], cds)}_{_c_position(v['start'] + 1, cds)}ins{v['alt']}"
+                im_gen = start <= v["start"] < ende
+            v["p"] = ""
+            if not im_gen:
+                v["wirkung"] = "außerhalb des Gens (nicht codierend)"
+            elif laenge % 3 == 0:
+                art = "fehlen" if v["art"] == "Deletion" else "kommen hinzu"
+                v["wirkung"] = f"In-frame ({laenge // 3} Aminosäure(n) {art}, Leseraster bleibt)"
+            else:
+                v["wirkung"] = "Frameshift (Leserasterverschiebung, Protein ab hier verändert)"
+    return varianten
+
+
+def variante_auf_referenz_position(a1, a2, ref_position):
+    """Welche Position (ab 1) in der Variante entspricht der Referenzposition? None, wenn dort eine Lücke ist."""
+    rpos = vpos = 0
+    for r, v in zip(a1, a2):
+        if r != "-":
+            rpos += 1
+        if v != "-":
+            vpos += 1
+        if rpos == ref_position and r != "-":
+            return vpos if v != "-" else None
+    return None
+
+
+def vergleiche_proteine(p_ref, p_var):
+    if p_ref == p_var:
+        return "identisch"
+    if len(p_ref) == len(p_var):
+        unterschiede = [i for i in range(len(p_ref)) if p_ref[i] != p_var[i]]
+        return f"{len(unterschiede)} Aminosäure(n) verschieden, gleiche Länge ({len(p_ref)} AS)"
+    i = 0
+    while i < min(len(p_ref), len(p_var)) and p_ref[i] == p_var[i]:
+        i += 1
+    return f"Länge {len(p_ref)} → {len(p_var)} AS, erste Abweichung an Aminosäure {i + 1}"
