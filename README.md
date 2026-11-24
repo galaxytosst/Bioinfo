@@ -5,6 +5,7 @@ Schritt für Schritt Bioinformatik mit Python lernen, an echten biologischen Bei
 | Ordner | Inhalt |
 |---|---|
 | `00_python_grundlagen/` | Teil 0: Python-Grundlagen (Basen zählen, Transkription, GC-Gehalt, Reverse Complement, Translation, FASTA) + Sequenz-Umwandler + Strang-Vergleich |
+| `01_alignment/` | Teil 1: Paarweises Alignment, Needleman-Wunsch (global) und Smith-Waterman (lokal) |
 
 **Öffnen in Colab:** colab.research.google.com → *Datei → Notebook öffnen* → Reiter **GitHub** → dieses Repository auswählen.
 
