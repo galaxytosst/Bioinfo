@@ -71,10 +71,10 @@ def analysiere_ordner(ordner, ausgabe_ordner="ergebnisse", **einstellungen):
     _ausgabe(bericht, "=" * 78)
     _ausgabe(bericht, f"1. ÜBERSICHT: {len(namen)} Sequenzen aus '{ordner}'")
     _ausgabe(bericht, "=" * 78)
-    _ausgabe(bericht, f"{'Name':<32} {'Datei':<22} {'Länge':>11} {'GC %':>6} {'N':>7}")
+    _ausgabe(bericht, f"{'Name':<48} {'Datei':<22} {'Länge':>11} {'GC %':>6} {'N':>7}")
     for n in namen:
         s = sequenzen[n]
-        _ausgabe(bericht, f"{n[:32]:<32} {herkunft[n][:22]:<22} {len(s):>11,} {gc_gehalt(s):>6.1f} {s.count('N'):>7,}")
+        _ausgabe(bericht, f"{n[:48]:<48} {herkunft[n][:22]:<22} {len(s):>11,} {gc_gehalt(s):>6.1f} {s.count('N'):>7,}")
     with open(os.path.join(ausgabe_ordner, "uebersicht.csv"), "w") as f:
         f.write("name;datei;laenge;gc_prozent;A;C;G;T;N\n")
         for n in namen:
@@ -101,7 +101,7 @@ def analysiere_ordner(ordner, ausgabe_ordner="ergebnisse", **einstellungen):
                     faa.write(o["protein"][i:i + 70] + "\n")
             laengste = max((len(o["protein"]) for o in orfs), default=0)
             abdeckung = sum(len(o["dna"]) for o in orfs) / len(sequenzen[n]) * 100
-            _ausgabe(bericht, f"{n[:32]:<32} {len(orfs):>6} ORFs   längster: {laengste:>6} AS   "
+            _ausgabe(bericht, f"{n[:48]:<48} {len(orfs):>6} ORFs   längster: {laengste:>6} AS   "
                               f"Anteil der Sequenz in ORFs: {min(abdeckung, 100):.0f} %")
     _ausgabe(bericht, "→ Alle ORFs: orfs.csv, Proteinsequenzen: orf_proteine.fasta")
 
@@ -130,7 +130,7 @@ def analysiere_ordner(ordner, ausgabe_ordner="ergebnisse", **einstellungen):
     if alignierbar:
         k_test = 8
         mengen = {n: kmer_menge(sequenzen[n], k_test) for n in namen if len(sequenzen[n]) <= E["MAX_ALIGN_LAENGE"]}
-        _ausgabe(bericht, f"{'Sequenz 1':<26} {'Sequenz 2':<26} {'Strang':<7} {'Identität':>9} {'Lücken':>7} {'Score':>7}")
+        _ausgabe(bericht, f"{'Sequenz 1':<48} {'Sequenz 2':<48} {'Strang':<7} {'Identität':>9} {'Lücken':>7} {'Score':>7}")
         mutationszeilen = []
         with open(os.path.join(ausgabe_ordner, "alignments.txt"), "w") as f:
             for nr, (a, b) in enumerate(alignierbar, 1):
@@ -143,7 +143,7 @@ def analysiere_ordner(ordner, ausgabe_ordner="ergebnisse", **einstellungen):
                 erg = needleman_wunsch(s1, s2, E["MATCH"], E["MISMATCH"], E["GAP"])
                 st = alignment_statistik(erg["a1"], erg["a2"])
                 distanzen_aln[(a, b)] = distanz_aus_alignment(erg["a1"], erg["a2"])
-                _ausgabe(bericht, f"{a[:26]:<26} {b[:26]:<26} {strang:<7} {st['identitaet']:>8.1f}% "
+                _ausgabe(bericht, f"{a[:48]:<48} {b[:48]:<48} {strang:<7} {st['identitaet']:>8.1f}% "
                                   f"{st['luecken']:>7} {erg['score']:>7}")
                 f.write(f"### {a}  vs  {b}  (Strang {strang})\n")
                 f.write(f"Score {erg['score']}, Identität {st['identitaet']:.1f} %, Mismatches {st['mismatches']}, "

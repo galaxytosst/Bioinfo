@@ -52,6 +52,38 @@ def kurzer_name(kopfzeile):
     return "".join(rest) if rest else wort
 
 
+import re as _re
+_ACCESSION = _re.compile(r"^[A-Z]{1,2}_?[0-9]{5,9}(\.[0-9]+)?(:\S+)?$")
+
+
+_ABKUERZUNGEN = {
+    "Severe acute respiratory syndrome coronavirus 2": "SARS-CoV-2",
+    "Severe acute respiratory syndrome-related coronavirus": "SARS-CoV",
+    "Severe acute respiratory syndrome coronavirus": "SARS-CoV",
+    "Middle East respiratory syndrome coronavirus": "MERS-CoV",
+    "Human immunodeficiency virus 1": "HIV-1",
+}
+
+
+def beschriftung(kopfzeile, max_zeichen=45):
+    """Lesbarer Name aus der Kopfzeile.
+    NCBI-Kopfzeile '>NC_045512.2 Severe acute respiratory syndrome coronavirus 2 isolate Wuhan-Hu-1, complete genome'
+    → 'Severe acute respiratory syndrome… (NC_045512.2)'. Andere Kopfzeilen → erstes Wort."""
+    name = kurzer_name(kopfzeile)
+    teile = kopfzeile.split(maxsplit=1)
+    if not _ACCESSION.match(name) or len(teile) < 2:
+        return name
+    text = _re.sub(r"\[.*?\]", "", teile[1])                     # [Organismus]-Angaben am Ende weg
+    text = text.split(",")[0]                                       # ", complete genome" usw. weg
+    text = _re.split(r" (isolate|strain|str\.|clone|chromosome|genomic sequence|complete) ", " " + text + " ")[0]
+    text = text.strip() or teile[1].strip()
+    for lang, kurz in _ABKUERZUNGEN.items():
+        text = text.replace(lang, kurz)
+    if len(text) > max_zeichen:
+        text = text[:max_zeichen - 1].rstrip() + "…"
+    return f"{text} ({name})"
+
+
 def lese_fasta(dateiname):
     """Liest eine FASTA-Datei. Gibt Dictionary {Name: Sequenz} zurück (Name = erstes Wort der Kopfzeile)."""
     sequenzen = {}
@@ -62,7 +94,7 @@ def lese_fasta(dateiname):
             if zeile == "":
                 continue
             if zeile.startswith(">"):
-                name = kurzer_name(zeile[1:]) if zeile[1:].strip() else f"ohne_namen_{len(sequenzen) + 1}"
+                name = beschriftung(zeile[1:]) if zeile[1:].strip() else f"ohne_namen_{len(sequenzen) + 1}"
                 sequenzen[name] = []
             elif name is not None:
                 sequenzen[name].append(zeile)        # Liste statt String: viel schneller bei großen Dateien
@@ -412,8 +444,13 @@ def neighbor_joining(namen, D, aussengruppe=None):
     return {"name": None, "kinder": [(_blatt(erstes), laenge / 2), (teilbaum(eltern, erstes), laenge / 2)]}
 
 
+def newick_name(name):
+    """Newick verbietet Leerzeichen und Zeichen wie , ( ) : ;"""
+    return _re.sub(r"[\s,;:()\[\]']+", "_", name).strip("_")
+
+
 def newick(knoten, laenge=None):
-    text = "(" + ",".join(newick(k, l) for k, l in knoten["kinder"]) + ")" if knoten["kinder"] else knoten["name"]
+    text = "(" + ",".join(newick(k, l) for k, l in knoten["kinder"]) + ")" if knoten["kinder"] else newick_name(knoten["name"])
     return text + (f":{laenge:.5f}" if laenge is not None else "")
 
 
@@ -442,7 +479,7 @@ def zeichne_baum(knoten, titel, ax):
 
     def zeichne(k, x):
         if not k["kinder"]:
-            ax.text(x, y_pos[k["name"]], "  " + k["name"].replace("_", " "), va="center", fontsize=9)
+            ax.text(x, y_pos[k["name"]], "  " + (k["name"] if "(" in k["name"] else k["name"].replace("_", " ")), va="center", fontsize=9)
             return y_pos[k["name"]]
         ys = []
         for kind, l in k["kinder"]:
