@@ -832,6 +832,135 @@ def wirkung_der_varianten(referenz, varianten, cds):
     return varianten
 
 
+# ======================================================================
+# Mutations-Rezepte: bekannte Mutation in HGVS-Schreibweise in eine Referenz einbauen
+# ======================================================================
+
+_HGVS_POS = r"([-*]?\d+)"
+_HGVS_TEIL = _re.compile(r"^" + _HGVS_POS + r"(?:_" + _HGVS_POS + r")?"
+                         r"(?:([ACGT])>([ACGT])|(delins)([ACGT]+)|(del)([ACGT]*)|(dup)([ACGT]*)|(ins)([ACGT]+))$")
+
+
+def _hgvs_index(text, cds):
+    """c.-Position (z. B. '20', '-5', '*3') → Index in der Sequenz (ab 0)."""
+    start, ende = cds
+    if text.startswith("-"):
+        return start - 1 - int(text[1:])
+    if text.startswith("*"):
+        return ende - 1 + int(text[1:])
+    return start - 1 + int(text) - 1
+
+
+def wende_hgvs_an(sequenz, cds, hgvs):
+    """Baut eine Mutation in HGVS-c.-Schreibweise ein, z. B. 'c.20A>T', 'c.1521_1523del', 'c.68_69delAG',
+    'c.5266dupC', 'c.27_28insG', 'c.[385A>G;532G>A]'. cds = (start, ende) ab 1 wie bei finde_cds.
+    Prüft die Referenzbasen und meldet einen Fehler, wenn sie nicht passen."""
+    text = hgvs.strip()
+    if not text.startswith("c."):
+        raise ValueError(f"{hgvs}: Mutation muss mit c. beginnen (Position im Gen)")
+    text = text[2:]
+    teile = text[1:-1].split(";") if text.startswith("[") else [text]
+    aenderungen = []
+    for teil in teile:
+        m = _HGVS_TEIL.match(teil.strip())
+        if not m:
+            raise ValueError(f"{hgvs}: '{teil}' verstehe ich nicht")
+        a = _hgvs_index(m.group(1), cds)
+        b = _hgvs_index(m.group(2), cds) if m.group(2) else a
+        if not (0 <= a <= b < len(sequenz)):
+            raise ValueError(f"{hgvs}: Position außerhalb der Sequenz")
+        if m.group(3):                                      # Austausch
+            if sequenz[a] != m.group(3):
+                raise ValueError(f"{hgvs}: an c.{m.group(1)} steht {sequenz[a]}, nicht {m.group(3)}")
+            aenderungen.append((a, a + 1, m.group(4)))
+        elif m.group(5):                                    # delins
+            aenderungen.append((a, b + 1, m.group(6)))
+        elif m.group(7):                                    # Deletion
+            if m.group(8) and sequenz[a:b + 1] != m.group(8):
+                raise ValueError(f"{hgvs}: dort steht {sequenz[a:b + 1]}, nicht {m.group(8)}")
+            if m.group(8) and not m.group(2) and len(m.group(8)) > 1:
+                b = a + len(m.group(8)) - 1
+            aenderungen.append((a, b + 1, ""))
+        elif m.group(9):                                    # Duplikation: Abschnitt direkt dahinter noch einmal
+            if m.group(10) and sequenz[a:b + 1] != m.group(10):
+                raise ValueError(f"{hgvs}: dort steht {sequenz[a:b + 1]}, nicht {m.group(10)}")
+            aenderungen.append((b + 1, b + 1, sequenz[a:b + 1]))
+        else:                                               # Insertion zwischen zwei Nachbarbasen
+            if b != a + 1:
+                raise ValueError(f"{hgvs}: Insertion braucht zwei benachbarte Positionen, z. B. c.27_28insG")
+            aenderungen.append((b, b, m.group(12)))
+    neu = sequenz
+    for a, b, ersatz in sorted(aenderungen, reverse=True):  # von hinten, damit die Positionen stimmen
+        neu = neu[:a] + ersatz + neu[b:]
+    return neu
+
+
+_P_TEIL = _re.compile(r"^([A-Z][a-z]{2})(\d+)(?:([A-Z][a-z]{2}|Ter|\*)(fs.*)?|(del)|(fs.*))$")
+
+
+def pruefe_protein_aenderung(referenz, cds, neu, erwartet):
+    """Prüft, ob die eingebaute Mutation die erwartete Proteinänderung macht (z. B. 'p.Glu7Val',
+    'p.Phe508del', 'p.Gln40Ter', 'p.Glu23ValfsTer17', 'p.[Arg176Gly;Gly235Ser]'). Gibt eine Liste
+    von Fehlertexten zurück (leer = alles passt)."""
+    drei_zu_eins = {v: k for k, v in DREIBUCHSTABEN.items()}
+    drei_zu_eins.update({"Ter": "*", "*": "*"})
+    start, ende = cds
+    prot_ref = uebersetze(referenz[start - 1:], bis_stopp=False)
+    prot_neu = uebersetze(neu[start - 1:], bis_stopp=False)
+    text = erwartet.strip()
+    if not text.startswith("p."):
+        return [f"{erwartet}: muss mit p. beginnen"]
+    text = text[2:].strip("()")
+    teile = text[1:-1].split(";") if text.startswith("[") else [text]
+    fehler = []
+    for teil in teile:
+        m = _P_TEIL.match(teil.strip())
+        if not m:
+            fehler.append(f"{erwartet}: '{teil}' verstehe ich nicht")
+            continue
+        aa, nr = drei_zu_eins.get(m.group(1)), int(m.group(2))
+        if nr > len(prot_ref) or prot_ref[nr - 1] != aa:
+            ist = prot_ref[nr - 1] if nr <= len(prot_ref) else "?"
+            fehler.append(f"{erwartet}: Referenz hat an Position {nr} {DREIBUCHSTABEN.get(ist, ist)}, "
+                          f"nicht {m.group(1)}")
+            continue
+        if m.group(5):                                       # Deletion einer Aminosäure
+            ref_bis_stopp = uebersetze(referenz[start - 1:])
+            if uebersetze(neu[start - 1:]) != ref_bis_stopp[:nr - 1] + ref_bis_stopp[nr:]:
+                fehler.append(f"{erwartet}: Aminosäure {nr} fehlt nicht wie erwartet")
+        elif m.group(4) or m.group(6):                       # Frameshift
+            if (len(neu) - len(referenz)) % 3 == 0 or prot_neu[:nr - 1] != prot_ref[:nr - 1]:
+                fehler.append(f"{erwartet}: kein Frameshift ab Position {nr}")
+        else:
+            soll = drei_zu_eins.get(m.group(3))
+            if nr > len(prot_neu) or prot_neu[nr - 1] != soll:
+                ist = prot_neu[nr - 1] if nr <= len(prot_neu) else "?"
+                fehler.append(f"{erwartet}: neu steht an Position {nr} {DREIBUCHSTABEN.get(ist, ist)}, "
+                              f"nicht {m.group(3)}")
+    return fehler
+
+
+def lese_varianten_rezept(dateiname):
+    """Liest varianten.txt: Zeilen 'Name  c.…  [p.…]  # Kommentar' und eine Zeile 'BASIS: Accession'.
+    Gibt (basis, [(name, c, p_oder_None, kommentar)]) zurück."""
+    basis, rezepte = None, []
+    with open(dateiname) as f:
+        for zeile in f:
+            inhalt, _, kommentar = zeile.partition("#")
+            inhalt = inhalt.strip()
+            if not inhalt:
+                continue
+            if inhalt.upper().startswith("BASIS:"):
+                basis = inhalt.split(":", 1)[1].strip()
+                continue
+            teile = inhalt.split()
+            if len(teile) < 2:
+                raise ValueError(f"varianten.txt: Zeile '{inhalt}' braucht Name und c.-Mutation")
+            p = next((t for t in teile[2:] if t.startswith("p.")), None)
+            rezepte.append((teile[0], teile[1], p, kommentar.strip()))
+    return basis, rezepte
+
+
 def variante_auf_referenz_position(a1, a2, ref_position):
     """Welche Position (ab 1) in der Variante entspricht der Referenzposition? None, wenn dort eine Lücke ist."""
     rpos = vpos = 0

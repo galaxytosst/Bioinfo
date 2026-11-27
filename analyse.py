@@ -18,7 +18,11 @@ Benutzung:
 
 Ein Ordner kann zusätzlich enthalten:
     einstellungen.json   eigene Einstellungen für diesen Ordner, z. B. {"REFERENZ": "...", "AUSSENGRUPPE": [...]}
-    accessions.txt       NCBI-Nummern (eine pro Zeile); fehlende Sequenzen werden automatisch heruntergeladen
+                         (Namen dürfen auch nur die NCBI-Nummer sein, z. B. "NM_000518.5")
+    accessions.txt       NCBI-Nummern (eine pro Zeile, optional "= Anzeigename"); fehlende Sequenzen werden
+                         automatisch heruntergeladen
+    varianten.txt        Mutations-Rezepte: bekannte Mutationen (HGVS, z. B. c.20A>T) werden beim Start in die
+                         Referenz (Zeile "BASIS: NM_…") eingebaut und als eigene Sequenzen ausgewertet
     LIESMICH.md          kurze Beschreibung, erscheint im HTML-Bericht
 """
 
@@ -33,7 +37,8 @@ from werkzeuge import (lese_ordner, gc_gehalt, zusammensetzung, finde_orfs, ausr
                        distanz_aus_alignment, kmer_menge, kmer_distanz, upgma, neighbor_joining,
                        newick, baum_als_text, transkribiere, uebersetze, finde_cds,
                        finde_varianten, wirkung_der_varianten, variante_auf_referenz_position,
-                       vergleiche_proteine, lade_von_ncbi, normalisiere_indels)
+                       vergleiche_proteine, lade_von_ncbi, normalisiere_indels,
+                       lese_varianten_rezept, wende_hgvs_an, pruefe_protein_aenderung)
 from werkzeuge import (protein_aus_dna, ausrichten_protein, protein_statistik, protein_unterschiede,
                        protein_alignment_text, protein_kennzahlen, DREIBUCHSTABEN, EIGENSCHAFT)
 
@@ -79,6 +84,7 @@ STANDARD = {
     "REFERENZ": None,                     # Referenz für die Variantenanalyse (None = erste Sequenz)
     "CDS": None,                          # (start, ende) des Gens in der Referenz, ab 1; None = automatisch
     "MIN_IDENTITAET_VARIANTEN": 80,       # nur Sequenzen, die der Referenz mindestens so ähnlich sind (%)
+    "NUR_CDS": False,                     # True = von jeder Sequenz nur das Gen (längster ORF ab ATG) nehmen
     "SCHRITTE": "alles",                  # oder z. B. "Protein, Stammbaum" (siehe ALLE_SCHRITTE)
     "STRUKTUR": None,                     # 3D-Struktur: PDB-ID (z. B. "4HHB") oder UniProt-Nr.; None = automatisch suchen
     "UNIPROT": None,                      # UniProt-Nr. für bekannte Stellen; None = aus der PDB ermitteln
@@ -106,6 +112,52 @@ def _einstellungen(einstellungen, ordner=None):
             raise ValueError(f"Unbekannte Einstellung: {schluessel}. Möglich: {', '.join(E)}")
         E[schluessel] = tuple(wert) if schluessel in ("STARTCODONS", "CDS") and wert else wert
     return E
+
+
+def finde_namen(wunsch, namen):
+    """Erlaubt in REFERENZ/AUSSENGRUPPE auch nur die NCBI-Nummer ("NM_000518.5" oder "NM_000518")
+    oder einen eindeutigen Teil des Namens. Sonst bleibt der Wunsch unverändert (dann folgt eine Warnung)."""
+    if wunsch in namen:
+        return wunsch
+    for n in namen:
+        if n.endswith(f"({wunsch})") or re.search(r"\(" + re.escape(wunsch) + r"\.\d+\)$", n):
+            return n
+    treffer = [n for n in namen if wunsch.lower() in n.lower()]
+    return treffer[0] if len(treffer) == 1 else wunsch
+
+
+def _varianten_aus_rezept(datei, sequenzen, herkunft, R, B):
+    """varianten.txt: bekannte Mutationen in die Basis-Sequenz einbauen und als neue Sequenzen anhängen."""
+    try:
+        basis, rezepte = lese_varianten_rezept(datei)
+    except ValueError as fehler:
+        R["warnungen"].append(str(fehler))
+        B("⚠️ " + str(fehler))
+        return
+    name = finde_namen(basis or "", list(sequenzen)) if basis else next(iter(sequenzen), None)
+    if name not in sequenzen:
+        R["warnungen"].append(f"varianten.txt: Basis '{basis}' fehlt (noch nicht geladen?).")
+        B("⚠️ " + R["warnungen"][-1])
+        return
+    ref = sequenzen[name]
+    cds = finde_cds(ref)
+    if not cds:
+        R["warnungen"].append(f"varianten.txt: In {name} wurde kein Gen gefunden.")
+        return
+    B(f"Mutations-Rezepte: {len(rezepte)} Variante(n) werden in {name} eingebaut (Gen an Position {cds[0]}–{cds[1]}).")
+    for v_name, c, p, kommentar in rezepte:
+        try:
+            neu = wende_hgvs_an(ref, cds, c)
+        except ValueError as fehler:
+            R["warnungen"].append(f"Rezept {v_name}: {fehler}")
+            B(f"⚠️ Rezept {v_name}: {fehler}")
+            continue
+        for f in (pruefe_protein_aenderung(ref, cds, neu, p) if p else []):
+            R["warnungen"].append(f"Rezept {v_name}: {f}")
+            B(f"⚠️ Rezept {v_name}: {f}")
+        sequenzen[v_name] = neu
+        herkunft[v_name] = "varianten.txt"
+        R.setdefault("rezept_cds", {})[v_name] = (cds[0], cds[1] + len(neu) - len(ref))   # Gen wie in der Basis
 
 
 def _aligniere(s1, s2, E):
@@ -153,8 +205,15 @@ def analysiere_ordner(ordner, ausgabe_ordner="ergebnisse", html=True, **einstell
     # ------------------------------------------------------------ 0. Fehlende Daten von NCBI holen
     acc_datei = os.path.join(ordner, "accessions.txt")
     if os.path.exists(acc_datei):
+        accessions, anzeigenamen = [], {}
         with open(acc_datei) as f:
-            accessions = [z.split("#")[0].strip() for z in f if z.split("#")[0].strip()]
+            for z in f:
+                inhalt = z.split("#")[0].strip()          # Zeile: "NM_000518.5 = Mensch HBB  # Kommentar"
+                if inhalt:
+                    acc, _, anzeige = inhalt.partition("=")
+                    accessions.append(acc.strip())
+                    if anzeige.strip():
+                        anzeigenamen[acc.strip() + ".fasta"] = f"{anzeige.strip()} ({acc.strip()})"
         fehlend = [a for a in accessions if not os.path.exists(os.path.join(ordner, a + ".fasta"))]
         if fehlend:
             B(f"Lade {len(fehlend)} Sequenz(en) von NCBI: {', '.join(fehlend)}")
@@ -166,7 +225,36 @@ def analysiere_ordner(ordner, ausgabe_ordner="ergebnisse", html=True, **einstell
     # ------------------------------------------------------------ 1. Einlesen
     sequenzen, herkunft = lese_ordner(ordner)
     sequenzen = {n: s for n, s in sequenzen.items() if len(s) > 0}
+    if os.path.exists(acc_datei):                     # Reihenfolge und Anzeigenamen wie in accessions.txt
+        reihenfolge = {a + ".fasta": i for i, a in enumerate(accessions)}
+        sequenzen = dict(sorted(sequenzen.items(), key=lambda x: reihenfolge.get(herkunft[x[0]], len(reihenfolge))))
+        umbenannt = {}
+        for n, seq in sequenzen.items():
+            neu = anzeigenamen.get(herkunft[n], n)
+            if neu in umbenannt:
+                neu = n
+            umbenannt[neu] = seq
+            herkunft[neu] = herkunft[n]
+        sequenzen = umbenannt
+    rezept = os.path.join(ordner, "varianten.txt")
+    if os.path.exists(rezept):
+        _varianten_aus_rezept(rezept, sequenzen, herkunft, R, B)
+    if E["NUR_CDS"]:
+        for n in list(sequenzen):
+            cds = R.get("rezept_cds", {}).get(n) or finde_cds(sequenzen[n], min_as=E["ORF_MIN_AMINOSAEUREN"])
+            if cds:
+                sequenzen[n] = sequenzen[n][cds[0] - 1:cds[1]]
+                if n in R.get("rezept_cds", {}):
+                    R["rezept_cds"][n] = (1, len(sequenzen[n]))
+            else:
+                R["warnungen"].append(f"{n}: kein Gen gefunden, die ganze Sequenz wird benutzt.")
+        B("Nur die Gene (CDS, ATG bis Stopp) werden verglichen, ohne die nicht codierenden Enden der mRNA.")
     namen = list(sequenzen)
+    for schluessel in ("REFERENZ",):
+        if E[schluessel]:
+            E[schluessel] = finde_namen(E[schluessel], namen)
+    if E["AUSSENGRUPPE"]:
+        E["AUSSENGRUPPE"] = [finde_namen(a, namen) for a in E["AUSSENGRUPPE"]]
     R["namen"] = namen
     if not namen:
         B(f"⚠️ Keine FASTA-Sequenzen in '{ordner}' gefunden. Erlaubte Endungen: .fasta .fa .fna .fas .ffn .txt")
@@ -275,7 +363,7 @@ def analysiere_ordner(ordner, ausgabe_ordner="ergebnisse", html=True, **einstell
     R["protein"] = None
     if "protein" in S:
         B.titel("5. PROTEIN-VERGLEICH (Translation, Alignment mit BLOSUM62)")
-        R["protein"] = _proteinvergleich(sequenzen, namen, E, ausgabe_ordner, B)
+        R["protein"] = _proteinvergleich(sequenzen, namen, E, ausgabe_ordner, B, gen_cds=R.get("rezept_cds"))
 
     # ------------------------------------------------------------ 6. 3D-Struktur
     R["struktur"] = None
@@ -604,12 +692,17 @@ def _variantenanalyse(sequenzen, namen, identitaeten, E, ausgabe_ordner, B):
 # Stammbaum
 # ======================================================================
 
-def _proteinvergleich(sequenzen, namen, E, ausgabe_ordner, B, max_proteine=40):
-    """Übersetzt das Gen jeder Sequenz und vergleicht die Proteine (BLOSUM62, affine Lücken wie BLASTP)."""
+def _proteinvergleich(sequenzen, namen, E, ausgabe_ordner, B, max_proteine=40, gen_cds=None):
+    """Übersetzt das Gen jeder Sequenz und vergleicht die Proteine (BLOSUM62, affine Lücken wie BLASTP).
+    gen_cds: bekannte Genpositionen {Name: (start, ende)}, z. B. für eingebaute Mutationen mit Stoppcodon."""
     P = {"proteine": [], "paare": [], "referenz": None, "vergleiche": [], "hinweis": ""}
     for n in namen:
         s = sequenzen[n]
-        protein, cds = protein_aus_dna(s, min_as=30)
+        if gen_cds and n in gen_cds:
+            cds = gen_cds[n]
+            protein = uebersetze(s[cds[0] - 1:cds[1]]) or None
+        else:
+            protein, cds = protein_aus_dna(s, min_as=30)
         eintrag = {"name": n, "protein": None, "quelle": "kein Gen erkannt (kein ORF ab 30 AS)"}
         if protein:
             anteil = (cds[1] - cds[0] + 1) / len(s)
