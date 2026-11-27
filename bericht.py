@@ -343,11 +343,12 @@ def _projekt_html(R, nr):
     for w in R.get("warnungen", []):
         h.append(f'<div class="warnung">⚠️ {_e(w)}</div>')
     seqs = R["sequenzen"]
-    S = set(R.get("schritte") or ("orfs", "alignment", "varianten", "protein", "stammbaum"))
-    if len(S) < 5:
+    from analyse import ALLE_SCHRITTE
+    S = set(R.get("schritte") or ALLE_SCHRITTE)
+    if len(S) < len(ALLE_SCHRITTE):
         from analyse import SCHRITT_NAMEN
         h.append(f'<p class="leise">Gewählte Analyse: Übersicht + '
-                 f'{", ".join(SCHRITT_NAMEN[s] for s in ("orfs", "alignment", "varianten", "protein", "stammbaum") if s in S)}</p>')
+                 f'{", ".join(SCHRITT_NAMEN[s] for s in ALLE_SCHRITTE if s in S)}</p>')
     anzahl_orfs = sum(len(s.get("orfs", [])) for s in seqs)
     anzahl_var = sum(len(e["varianten"]) for e in (R.get("varianten") or {}).get("ergebnisse", []))
     h.append('<div class="kacheln">')
@@ -361,6 +362,8 @@ def _projekt_html(R, nr):
         kacheln.append((anzahl_var, "Varianten"))
     if "protein" in S:
         kacheln.append((sum(1 for e in P.get("proteine", []) if e["protein"]), "Proteine"))
+    if "struktur" in S:
+        kacheln.append(((R.get("struktur") or {}).get("kennung") or "–", "3D-Struktur"))
     if "stammbaum" in S:
         kacheln.append(("ja" if R.get("baum") else "–", "Stammbaum"))
     for zahl, text in kacheln:
@@ -389,6 +392,8 @@ def _projekt_html(R, nr):
         h.append(_varianten_html(R, E))
     if "protein" in S:
         h.append(_protein_html(P))
+    if "struktur" in S:
+        h.append(_struktur_html(R.get("struktur")))
     if "stammbaum" in S:
         h.append(_stammbaum_html(R))
     h.append(f'<p class="leise">Dateien zu diesem Projekt: {_e(R["ausgabe_ordner"])}/ · '
@@ -492,6 +497,90 @@ def _blosum_marke(punkte):
     farbe = "#009E73" if punkte > 0 else ("#D55E00" if punkte < 0 else "#6b6b6b")
     return f'<span style="color:{farbe};font-weight:600">{punkte:+d}</span>' if punkte else \
         f'<span style="color:{farbe};font-weight:600">0</span>'
+
+
+def _struktur_html(T):
+    """Abschnitt 3D-Struktur: Herkunft, 3D-Ansicht, Bindestellen, Lage der Unterschiede."""
+    import struktur as st
+    h = ["<h3>3D-Struktur</h3>"]
+    if not T:
+        return ""
+    for w in T.get("warnungen", []):
+        h.append(f'<div class="warnung">⚠️ {_e(w)}</div>')
+    if not T.get("S"):
+        h.append(f'<div class="box">{_e(T.get("hinweis") or "Keine Struktur.")}</div>')
+        return "\n".join(h)
+    S, kette = T["S"], T["kette"]
+    k = T.get("kandidat", {})
+    herkunft = "vorgegeben in den Einstellungen" if k.get("vorgegeben") else (
+        f"automatisch gefunden: Sequenz {k.get('identitaet', 0):.0f} % gleich" if k.get("identitaet") else "")
+    info = [f"<b>{_e(T['kennung'])}</b>: {_e(T['titel'])}"]
+    if T["alphafold"]:
+        info.append("Vorhersage von AlphaFold (nicht gemessen)")
+    elif T["methode"]:
+        info.append(_e(T["methode"].title()))
+    if T["aufloesung"]:
+        info.append(f"Auflösung {T['aufloesung']:.2f} Å")
+    if herkunft:
+        info.append(_e(herkunft))
+    h.append("<p>" + " · ".join(info) + "</p>")
+    gleich = f" (gleiche Sequenz auch in Kette {', '.join(T['gleiche_ketten'])})" if T["gleiche_ketten"] else ""
+    h.append(f'<p class="leise">{_e(T["protein_name"])} entspricht Kette {_e(kette)}{_e(gleich)}: '
+             f'{T["identitaet"]:.0f} % gleiche Aminosäuren über {T["abgedeckt"]} Positionen. Positionen unten zählen '
+             f'wie im Protein-Vergleich (ab dem Start-Methionin), die Nummern der Struktur können abweichen.</p>')
+    stat = T.get("statistik")
+    if T.get("positionen") and stat:
+        a, u = stat["alle"], stat["unterschiede"]
+        h.append(f'<div class="box"><b>{len(T["positionen"])} Positionen</b> unterscheiden sich zwischen den Proteinen '
+                 f'des Projekts. Davon liegen <b>{u["aussen"]:.0f} % an der Oberfläche</b> und {u["innen"]:.0f} % im '
+                 f'Inneren. Zum Vergleich, alle Aminosäuren der Kette: {a["aussen"]:.0f} % Oberfläche, '
+                 f'{a["innen"]:.0f} % innen. {stat["an_ligand"]} Unterschied(e) berühren direkt einen Liganden.'
+                 + (" Unterschiede häufen sich also an der Oberfläche: Dort stören Austausche die Faltung und die "
+                    "Funktion meist weniger, deshalb bleiben sie in der Evolution eher erhalten."
+                    if u["aussen"] > a["aussen"] + 10 and u["n"] >= 5 else "") + "</div>")
+    positionen_3d = [(p["index"], f"{p['rest'].split(':')[-1]}") for p in T.get("positionen", [])]
+    h.append('<p class="leise">3D: ziehen = drehen, Mausrad = zoomen. '
+             + ("Farbe = AlphaFold-Sicherheit. " if T["alphafold"] else
+                f"Kette {_e(kette)} in Regenbogenfarben, andere Ketten grau. ")
+             + "Grün = Liganden, hellblau = Bindestelle, orange = bekannte Stellen aus UniProt, "
+               "rote Kugeln = Positionen mit Unterschieden.</p>")
+    h.append(st.ansicht_3d_html(S, T["text"], None if T["alphafold"] else kette, T["bindestelle_indizes"],
+                                positionen_3d, [(j, m["art"]) for m in T.get("uni_merkmale", []) for j in m["indizes"]]))
+    h.append(_bild(st.zugaenglichkeit_abbildung(S, kette, set(T["bindestelle_indizes"]), positionen_3d,
+                                                titel_rot="Unterschied"), "Oberfläche je Aminosäure"))
+    for b in T.get("bindestellen", []):
+        zeilen = [[_e(c["rest"]), f"{c['abstand']:.1f} Å", c["position"] or "–", _e(c["gruppe"]),
+                   f"{c['relativ']:.0f} %" if c["relativ"] is not None else "–"] for c in b["kontakte"]]
+        h.append(f"<details><summary>Bindestelle {_e(b['ligand'])} an {_e(b['ort'])}: {len(zeilen)} Aminosäuren"
+                 + (f" (kommt {b['anzahl']}× vor)" if b["anzahl"] > 1 else "") + "</summary>"
+                 + _tabelle(["Aminosäure", "Abstand", "Position im Protein", "Gruppe", "Frei zugänglich"], zeilen,
+                            zahlspalten=(1, 2, 4)) + "</details>")
+    if T.get("positionen"):
+        zeilen = []
+        for p in T["positionen"]:
+            aend = ", ".join(f"{n.split(' (')[0]}: {a}" for n, a in p["aenderungen"][:6])
+            if len(p["aenderungen"]) > 6:
+                aend += f" … (+{len(p['aenderungen']) - 6})"
+            bekannt = "; ".join(f"{v['ref']}→{v['alt']} {v['text']}" for v in p["bekannt"][:3])
+            zeilen.append([p["position"], _e(p["rest"]), _e(aend),
+                           f"{p['relativ']:.0f} %" if p["relativ"] is not None else "–", _e(p["lage"]),
+                           f"{_e(p['ligand'][0])} {p['ligand'][1]:.1f} Å" if p["ligand"] else "–",
+                           _e(", ".join(p["andere_ketten"]) or "–"), _e(bekannt or "–")])
+        offen = " open" if len(zeilen) <= 12 else ""
+        h.append(f"<details{offen}><summary>Wo liegen die Unterschiede? ({len(zeilen)} Positionen)</summary>"
+                 + _tabelle(["Pos.", "In der Struktur", "Änderung", "Frei", "Lage", "Nächster Ligand", "Kontakt zu Kette",
+                             "Bekannt aus UniProt"], zeilen, zahlspalten=(0, 3)) + "</details>")
+    if T.get("uni_merkmale"):
+        zeilen = [[_e(m["art"]), m["start"] if m["start"] == m["ende"] else f"{m['start']}–{m['ende']}",
+                   _e(m["text"] or "–"), _e(", ".join(m["orte"][:6]) or "nicht in der Struktur")]
+                  for m in T["uni_merkmale"]]
+        h.append(f"<details><summary>Bekannte Stellen aus UniProt {_e(T['uniprot'])} ({len(zeilen)})</summary>"
+                 + _tabelle(["Art", "Position", "Beschreibung", "In der Struktur"], zeilen) + "</details>")
+    h.append('<p class="leise">Frei zugänglich: Anteil der Oberfläche einer Aminosäure, den Wasser erreicht '
+             '(Shrake-Rupley, mit allen Ketten und Liganden der Datei). Unter 20 % = vergraben, über 50 % = Oberfläche '
+             '(Faustregeln). Bindestelle = Aminosäuren höchstens 4 Å vom Liganden. Dateien: '
+             f'{_e(T["kennung"])}.pdb, struktur_positionen.csv.</p>')
+    return "\n".join(h)
 
 
 def _protein_html(P):
@@ -660,6 +749,7 @@ def erstelle_html_bericht(ergebnisse, pfad):
 <p><b>stumm</b>: gleiche Aminosäure · <b>Missense</b>: andere Aminosäure · <b>Nonsense</b>: vorzeitiges Stoppcodon · <b>Frameshift</b>: Insertion/Deletion, die das Leseraster verschiebt · <b>In-frame</b>: Insertion/Deletion von ganzen Codons.</p>
 <p><b>Protein-Identität / Ähnlichkeit</b>: Identität zählt nur gleiche Aminosäuren. Ähnlichkeit zählt auch Austausche zwischen chemisch ähnlichen Aminosäuren (BLOSUM62 &gt; 0, z. B. Ile↔Val). <b>BLOSUM62</b>: Punktetabelle aus echten Proteinfamilien; positiv = häufiger Austausch, negativ = seltener.</p>
 <p><b>Protein-Kennzahlen</b>: <b>pI</b> (isoelektrischer Punkt) = pH, bei dem das Protein insgesamt ungeladen ist. Proteine mit anderer Ladung wandern in der Elektrophorese anders, so wurde 1949 der Unterschied zwischen HbA und HbS entdeckt. <b>GRAVY</b> = mittlere Hydropathie nach Kyte-Doolittle. <b>Instabilitätsindex</b> nach Guruprasad (1990): Faustregel aus Paaren benachbarter Aminosäuren, unter 40 = stabil; er sagt nichts über die Wirkung einzelner Mutationen.</p>
+<p><b>3D-Struktur</b>: Atomkoordinaten aus der Proteindatenbank PDB (gemessen, meist Röntgenstrukturanalyse) oder von AlphaFold (vorhergesagt). <b>Auflösung</b> in Å: je kleiner, desto genauer. <b>Ligand</b>: gebundenes Molekül, z. B. Häm. Bei Enzymen liegt das aktive Zentrum oft an einer solchen Bindestelle.</p>
 <p><b>UPGMA</b> nimmt eine gleichmäßige Mutationsrate an (molekulare Uhr), <b>Neighbor-Joining</b> nicht. Ein Stammbaum ist eine Schätzung.</p>
 </div>
 </div></body></html>""")

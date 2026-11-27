@@ -23,6 +23,7 @@ Ein Ordner kann zusätzlich enthalten:
 """
 
 import json
+import re
 import os
 import time
 
@@ -34,11 +35,11 @@ from werkzeuge import (lese_ordner, gc_gehalt, zusammensetzung, finde_orfs, ausr
                        finde_varianten, wirkung_der_varianten, variante_auf_referenz_position,
                        vergleiche_proteine, lade_von_ncbi, normalisiere_indels)
 from werkzeuge import (protein_aus_dna, ausrichten_protein, protein_statistik, protein_unterschiede,
-                       protein_alignment_text, protein_kennzahlen, DREIBUCHSTABEN)
+                       protein_alignment_text, protein_kennzahlen, DREIBUCHSTABEN, EIGENSCHAFT)
 
-ALLE_SCHRITTE = ("orfs", "alignment", "varianten", "protein", "stammbaum")
+ALLE_SCHRITTE = ("orfs", "alignment", "varianten", "protein", "struktur", "stammbaum")
 SCHRITT_NAMEN = {"orfs": "ORF-Suche", "alignment": "DNA-Vergleich", "varianten": "Mutationen",
-                 "protein": "Protein-Vergleich", "stammbaum": "Stammbaum"}
+                 "protein": "Protein-Vergleich", "struktur": "3D-Struktur", "stammbaum": "Stammbaum"}
 
 
 def schritte_aus_text(wert):
@@ -53,14 +54,17 @@ def schritte_aus_text(wert):
     for wort, schritt in [("orf", "orfs"), ("übersicht", "orfs"), ("uebersicht", "orfs"), ("gen", "orfs"),
                           ("dna", "alignment"), ("alignment", "alignment"), ("vergleich", "alignment"),
                           ("mutation", "varianten"), ("variant", "varianten"), ("protein", "protein"),
-                          ("stamm", "stammbaum"), ("baum", "stammbaum"), ("phylo", "stammbaum")]:
+                          ("stamm", "stammbaum"), ("baum", "stammbaum"), ("phylo", "stammbaum"),
+                          ("3d", "struktur"), ("struktur", "struktur")]:
         if wort in text:
             S.add(schritt)
     if "protein" in text and "dna" not in text and "alignment" not in text:
         S.discard("alignment")                      # "Protein-Vergleich" meint nicht den DNA-Vergleich
+    if "struktur" in S:
+        S.add("protein")                            # die 3D-Struktur braucht die übersetzten Proteine
     if not S:
         raise ValueError(f"Unbekannte Analyseart: {wert}. Möglich: alles, ORFs, DNA-Vergleich, Mutationen, "
-                         f"Protein-Vergleich, Stammbaum (mehrere mit Komma).")
+                         f"Protein-Vergleich, 3D-Struktur, Stammbaum (mehrere mit Komma).")
     return S
 
 STANDARD = {
@@ -76,6 +80,8 @@ STANDARD = {
     "CDS": None,                          # (start, ende) des Gens in der Referenz, ab 1; None = automatisch
     "MIN_IDENTITAET_VARIANTEN": 80,       # nur Sequenzen, die der Referenz mindestens so ähnlich sind (%)
     "SCHRITTE": "alles",                  # oder z. B. "Protein, Stammbaum" (siehe ALLE_SCHRITTE)
+    "STRUKTUR": None,                     # 3D-Struktur: PDB-ID (z. B. "4HHB") oder UniProt-Nr.; None = automatisch suchen
+    "UNIPROT": None,                      # UniProt-Nr. für bekannte Stellen; None = aus der PDB ermitteln
     "ZEIGE_GRAFIK": True,                 # Stammbaum direkt anzeigen
     "TEXT_AUSGABE": True,                 # Textbericht ausgeben
 }
@@ -271,10 +277,16 @@ def analysiere_ordner(ordner, ausgabe_ordner="ergebnisse", html=True, **einstell
         B.titel("5. PROTEIN-VERGLEICH (Translation, Alignment mit BLOSUM62)")
         R["protein"] = _proteinvergleich(sequenzen, namen, E, ausgabe_ordner, B)
 
-    # ------------------------------------------------------------ 6. Stammbaum
+    # ------------------------------------------------------------ 6. 3D-Struktur
+    R["struktur"] = None
+    if "struktur" in S:
+        B.titel("6. 3D-STRUKTUR (Proteindatenbank PDB, Lage der Unterschiede)")
+        R["struktur"] = _strukturanalyse(R["protein"], E, ausgabe_ordner, B)
+
+    # ------------------------------------------------------------ 7. Stammbaum
     R["baum"] = None
     if "stammbaum" in S:
-        B.titel("6. STAMMBAUM")
+        B.titel("7. STAMMBAUM")
         R["baum"] = _stammbaum(sequenzen, namen, paare, distanzen_aln, E, ausgabe_ordner, B)
 
     R["dauer"] = time.time() - startzeit
@@ -289,6 +301,184 @@ def analysiere_ordner(ordner, ausgabe_ordner="ergebnisse", html=True, **einstell
         if E["TEXT_AUSGABE"]:
             print(f"→ Bericht mit Tabellen und Diagrammen: {pfad}")
     return R
+
+
+# ======================================================================
+# 3D-Struktur
+# ======================================================================
+
+STRUKTUR_ORDNER = os.path.abspath("strukturen")      # Zwischenspeicher für geladene Strukturen
+
+
+def _strukturanalyse(P, E, ausgabe_ordner, B):
+    """Sucht eine Struktur zum Referenzprotein, findet die Bindestellen und zeigt, wo die
+    Unterschiede zwischen den Proteinen des Projekts in 3D liegen (innen, außen, am Liganden)."""
+    import struktur as st
+    T = {"hinweis": "", "warnungen": []}
+    mit = [e for e in (P or {}).get("proteine", []) if e["protein"]]
+    if not mit:
+        T["hinweis"] = "Kein Protein erkannt, daher keine 3D-Struktur."
+        B(T["hinweis"])
+        return T
+    ref = next((e for e in mit if e["name"] == P.get("referenz")), mit[0])
+    T["protein_name"], protein = ref["name"], ref["protein"]
+    try:
+        wert = str(E["STRUKTUR"] or "").strip()
+        if wert.lower() in ("auto", "automatisch", "automatisch suchen", "suchen"):
+            wert = ""
+        if wert:
+            kandidaten = [{"pdb": wert if os.path.isfile(wert) else st.kennung_aus_text(wert), "vorgegeben": True}]
+        else:
+            B(f"Suche in der PDB (rcsb.org) eine Struktur zu {ref['name']} ({len(protein)} AS) …")
+            kandidaten = st.suche_struktur(protein)
+            if not kandidaten:
+                T["hinweis"] = ("In der PDB gibt es keine Struktur, die mindestens 30 % mit diesem Protein "
+                                "übereinstimmt. Tipp: Mit der UniProt-Nummer als STRUKTUR wird das AlphaFold-Modell "
+                                "geladen.")
+                B(T["hinweis"])
+                return T
+        text = None
+        for k in kandidaten[:4]:
+            try:
+                text, quelle = st.lade_struktur(k["pdb"], STRUKTUR_ORDNER)
+                T["kandidat"] = k
+                break
+            except ValueError as fehler:        # z. B. nur im mmCIF-Format vorhanden
+                T["warnungen"].append(str(fehler))
+        if text is None:
+            T["hinweis"] = "Keine der gefundenen Strukturen ließ sich laden."
+            return T
+        S = st.lese_pdb(text)
+        st.zugaenglichkeit(S)
+        z = st.ordne_protein_zu(S, protein)
+        if z["identitaet"] < 30 or z["abgedeckt"] < 20:
+            T["hinweis"] = (f"Die Struktur {T['kandidat']['pdb']} passt nicht zum Protein "
+                            f"({z['identitaet']:.0f} % gleich).")
+            B(T["hinweis"])
+            return T
+        kennung = st.kennung_aus_text(T["kandidat"]["pdb"]).upper()
+        if os.path.isfile(str(T["kandidat"]["pdb"])):           # eigene Datei: Name ohne Endung
+            kennung = re.sub(r"\.(pdb|ent)(\.gz)?$", "", os.path.basename(T["kandidat"]["pdb"]), flags=re.I)
+        uniprot = E["UNIPROT"]
+        if not uniprot and S["alphafold"]:
+            uniprot = kennung.replace("AF-", "")
+        elif not uniprot and re.fullmatch(r"[0-9][A-Z0-9]{3}", kennung):
+            try:
+                uniprot = st.uniprot_der_kette(kennung, z["kette"])
+            except Exception:
+                uniprot = None
+        uni = None
+        if uniprot:
+            try:
+                uni = st.uniprot_merkmale(uniprot)
+            except Exception as fehler:
+                T["warnungen"].append(f"UniProt {uniprot} konnte nicht gelesen werden ({type(fehler).__name__}).")
+    except ConnectionError as fehler:
+        T["hinweis"] = str(fehler)
+        B("⚠️ " + T["hinweis"])
+        return T
+
+    kette = z["kette"]
+    rueck = {j: p for p, j in z["zuordnung"].items()}
+    T.update(kennung=kennung, quelle=quelle, titel=S["titel"], methode=S["methode"], aufloesung=S["aufloesung"],
+             alphafold=S["alphafold"], kette=kette, gleiche_ketten=z["gleiche_ketten"],
+             identitaet=z["identitaet"], abgedeckt=z["abgedeckt"], uniprot=uniprot, S=S, text=text)
+    B(f"Struktur: {kennung} – {S['titel']}")
+    B(f"   {S['methode'] or 'Modell'}" + (f", Auflösung {S['aufloesung']:.2f} Å" if S["aufloesung"] else ""))
+    B(f"   {ref['name']} entspricht Kette {kette}: {z['identitaet']:.0f} % gleich über {z['abgedeckt']} Positionen")
+
+    # Bindestellen: für jeden Liganden-Typ das Exemplar mit den meisten Kontakten zu "unserer" Kette
+    T["bindestellen"], bindestelle = [], set()
+    nach_name = {}
+    for j in S["liganden"]:
+        if S["reste"][j]["name"] not in st.ZUSAETZE:
+            nach_name.setdefault(S["reste"][j]["name"], []).append(j)
+    for name, js in nach_name.items():
+        beste = None
+        for j in js:
+            k = st.kontakte(S, j, 4.0)
+            eigene = sum(1 for a, _d in k if S["reste"][a]["kette"] == kette)
+            if eigene and (beste is None or eigene > beste[2]):
+                beste = (j, k, eigene)
+        if not beste:
+            continue
+        j, k, _n = beste
+        bindestelle.update(a for a, _d in k if S["reste"][a]["kette"] == kette)
+        T["bindestellen"].append({
+            "ligand": st.ligand_name(name), "ort": f"{S['reste'][j]['kette']}:{S['reste'][j]['kurz']}",
+            "anzahl": len(js),
+            "kontakte": [{"rest": st.rest_text(S["reste"][a]), "abstand": d, "position": rueck.get(a),
+                          "gruppe": EIGENSCHAFT.get(S["reste"][a]["buchstabe"], "?"),
+                          "relativ": S["reste"][a].get("relativ")} for a, d in k]})
+        B(f"   Bindestelle {st.ligand_name(name)}: " + ", ".join(
+            f"{st.rest_text(S['reste'][a])} ({d:.1f} Å)" for a, d in k[:8]) + (" …" if len(k) > 8 else ""))
+    T["bindestelle_indizes"] = sorted(bindestelle)
+
+    # Unterschiede aus dem Protein-Vergleich auf die Struktur legen
+    orte = {}
+    for v in (P or {}).get("vergleiche", []):
+        for d in v["unterschiede"]:
+            for pos in range(d["position"], d["ende"] + 1):
+                j = z["zuordnung"].get(pos)
+                if j is None:
+                    continue
+                eintrag = orte.setdefault(j, {"position": pos, "ref": protein[pos - 1], "aenderungen": []})
+                alt = d["alt"] if d["art"] == "Austausch" else ("fehlt" if d["art"] == "Deletion" else "+" + d["alt"])
+                eintrag["aenderungen"].append((v["name"], alt))
+                if d["art"] == "Insertion":
+                    break
+    uni_var = {}
+    if uni:
+        for va in uni["varianten"]:
+            uni_var.setdefault(va["position"], []).append(va)
+    T["positionen"] = []
+    for j, o in sorted(orte.items(), key=lambda t: t[1]["position"]):
+        neu = next((a for _n, a in o["aenderungen"] if len(a) == 1), None)
+        b = st.bewerte_position(S, j, neu)
+        T["positionen"].append({**o, "index": j, "rest": st.rest_text(S["reste"][j]), "relativ": b["relativ"],
+                                "lage": b["lage"], "ligand": (st.ligand_name(S["reste"][b["ligand"][0]]["name"]),
+                                                              b["ligand"][1]) if b["ligand"] else None,
+                                "andere_ketten": b["andere_ketten"], "hinweise": b["hinweise"],
+                                "bekannt": uni_var.get(o["position"], [])})
+    # Wo liegen die Unterschiede im Vergleich zu allen Aminosäuren der Kette?
+    alle = [S["reste"][j].get("relativ") for j in S["ketten"][kette]["reste"]]
+    alle = [x for x in alle if x is not None]
+    diff = [p["relativ"] for p in T["positionen"] if p["relativ"] is not None]
+
+    def anteile(werte):
+        n = max(1, len(werte))
+        return {"aussen": 100 * sum(x >= st.OBERFLAECHE_AB for x in werte) / n,
+                "innen": 100 * sum(x < st.VERGRABEN_BIS for x in werte) / n, "n": len(werte)}
+    T["statistik"] = {"alle": anteile(alle), "unterschiede": anteile(diff),
+                      "an_ligand": sum(1 for p in T["positionen"] if p["ligand"] and p["ligand"][1] <= 4.0)}
+    if T["positionen"]:
+        a, u = T["statistik"]["alle"], T["statistik"]["unterschiede"]
+        B(f"   {len(T['positionen'])} Positionen mit Unterschieden: {u['aussen']:.0f} % an der Oberfläche, "
+          f"{u['innen']:.0f} % vergraben (alle Aminosäuren der Kette: {a['aussen']:.0f} % / {a['innen']:.0f} %); "
+          f"{T['statistik']['an_ligand']} direkt am Liganden")
+    T["uni_merkmale"] = []
+    if uni and uni["sequenz"]:
+        zu = st.ordne_protein_zu(S, uni["sequenz"])
+        if zu["identitaet"] >= 30:
+            for m in uni["merkmale"]:
+                orte_m = [zu["zuordnung"].get(p) for p in ([m["start"], m["ende"]] if m["art"] == "Disulfidbrücke"
+                                                          else range(m["start"], m["ende"] + 1))]
+                orte_m = [j for j in orte_m if j is not None]
+                T["uni_merkmale"].append({**m, "indizes": orte_m,
+                                          "orte": [st.rest_text(S["reste"][j]) for j in orte_m]})
+    # Dateien
+    with open(os.path.join(ausgabe_ordner, "struktur_positionen.csv"), "w") as f:
+        f.write("position_protein;rest_struktur;aenderungen;frei_prozent;lage;naechster_ligand;abstand_A;"
+                "kontakt_kette\n")
+        for p in T["positionen"]:
+            f.write(f"{p['position']};{p['rest']};{' '.join(f'{n}:{a}' for n, a in p['aenderungen'])};"
+                    f"{'' if p['relativ'] is None else round(p['relativ'], 1)};{p['lage']};"
+                    f"{p['ligand'][0] if p['ligand'] else ''};{round(p['ligand'][1], 2) if p['ligand'] else ''};"
+                    f"{','.join(p['andere_ketten'])}\n")
+    with open(os.path.join(ausgabe_ordner, f"{kennung}.pdb"), "w") as f:
+        f.write(text)
+    B(f"→ {kennung}.pdb, struktur_positionen.csv")
+    return T
 
 
 # ======================================================================

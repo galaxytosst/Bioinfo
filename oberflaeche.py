@@ -593,127 +593,7 @@ def protein_vergleich_html(text1, text2, modus="global"):
 # 3D-Struktur: Bindestelle, Lage von Mutationen, 3D-Ansicht
 # ----------------------------------------------------------------------
 
-DREIDMOL_URL = "https://cdn.jsdelivr.net/npm/3dmol@2.4.2/build/3Dmol-min.js"
 STRUKTUR_ORDNER = os.path.abspath("strukturen")
-
-
-def _js_auswahl(S, indizes):
-    """3Dmol-Auswahl {chain, resi} für eine Liste von Rest-Indizes, nach Kette gruppiert."""
-    nach_kette = {}
-    for j in indizes:
-        r = S["reste"][j]
-        nach_kette.setdefault(r["kette"], []).append(r["nr"])
-    return [{"chain": k if k != "_" else "", "resi": sorted(set(v))} for k, v in nach_kette.items()]
-
-
-def _ansicht_3d(S, pdb_text, kette=None, bindestelle=(), positionen=(), merkmale=(), hoehe=520):
-    """HTML mit 3Dmol.js: Cartoon, Liganden als Stäbchen, Bindestelle hellblau, Positionen rot."""
-    import json as _json
-    import uuid
-    zeilen = [z for z in pdb_text.splitlines()
-              if z.startswith(("ATOM", "HETATM", "TER", "HELIX", "SHEET", "MODEL", "ENDMDL"))
-              and z[17:20].strip() not in ("HOH", "WAT", "DOD")]
-    modell = []
-    for z in zeilen:                         # nur das erste Modell
-        modell.append(z)
-        if z.startswith("ENDMDL"):
-            break
-    kennung = "v" + uuid.uuid4().hex[:10]
-    labels = []
-    for j, text in positionen:
-        r = S["reste"][j]
-        labels.append({"text": text, "sel": {"chain": r["kette"], "resi": r["nr"], "atom": "CA"}})
-    befehle = []
-    if S["alphafold"]:
-        befehle.append("v.setStyle({}, {cartoon: {colorfunc: function(a) { return a.b > 90 ? '#0053D6' : "
-                       "a.b > 70 ? '#65CBF3' : a.b > 50 ? '#FFDB13' : '#FF7D45'; }}});")
-    else:
-        befehle.append("v.setStyle({}, {cartoon: {color: '#d0d0d0'}});")
-        if kette:
-            befehle.append(f"v.setStyle({{chain: {_json.dumps(kette)}}}, {{cartoon: {{color: 'spectrum'}}}});")
-    ligand_namen = sorted({S["reste"][j]["name"] for j in S["liganden"]})
-    if ligand_namen:
-        befehle.append(f"v.addStyle({{resn: {_json.dumps(ligand_namen)}}}, "
-                       "{stick: {colorscheme: 'greenCarbon', radius: 0.25}});")
-    for sel in _js_auswahl(S, bindestelle):
-        befehle.append(f"v.addStyle({_json.dumps(sel)}, {{stick: {{colorscheme: 'cyanCarbon', radius: 0.18}}}});")
-    for sel in _js_auswahl(S, [j for j, _t in merkmale]):
-        befehle.append(f"v.addStyle({_json.dumps(sel)}, {{stick: {{colorscheme: 'orangeCarbon', radius: 0.22}}}});")
-    for sel in _js_auswahl(S, [j for j, _t in positionen]):
-        befehle.append(f"v.addStyle({_json.dumps(sel)}, {{sphere: {{color: '#D55E00', scale: 0.75}}}});")
-    befehle.append("L.forEach(function(l) { v.addLabel(l.text, {fontSize: 13, fontColor: 'white', "
-                   "backgroundColor: '#D55E00', backgroundOpacity: 0.85, inFront: true}, l.sel); });")
-    zoom = _json.dumps({"chain": kette}) if kette else "{}"
-    skript = f"""
-<div id="{kennung}" style="width:100%;height:{hoehe}px;position:relative;border:1px solid #ddd;border-radius:6px;
-background:#fff;"><div style="padding:12px;color:#666;font-family:sans-serif;">3D-Ansicht wird geladen …</div></div>
-<script>
-(function() {{
-  var pdb = {_json.dumps(chr(10).join(modell))};
-  var L = {_json.dumps(labels)};
-  function zeichne() {{
-    var el = document.getElementById("{kennung}");
-    el.innerHTML = "";
-    var v = $3Dmol.createViewer(el, {{backgroundColor: "white"}});
-    v.addModel(pdb, "pdb");
-    {chr(10).join("    " + b for b in befehle)}
-    v.zoomTo({zoom});
-    v.render();
-  }}
-  if (window.$3Dmol) {{ zeichne(); return; }}
-  var s = document.createElement("script");
-  s.src = "{DREIDMOL_URL}";
-  s.onload = zeichne;
-  s.onerror = function() {{
-    document.getElementById("{kennung}").innerHTML = "<div style='padding:12px'>Die 3D-Ansicht konnte nicht " +
-      "geladen werden (keine Verbindung zu cdn.jsdelivr.net). Die Tabellen oben gelten trotzdem.</div>";
-  }};
-  document.head.appendChild(s);
-}})();
-</script>"""
-    return skript
-
-
-def _zugaenglichkeit_abbildung(S, kette, bindestelle=(), positionen=()):
-    """Balken: relative Zugänglichkeit jedes Restes der Kette; blau = berührt Ligand, rot = gewählte Position."""
-    from matplotlib.figure import Figure
-    reste = S["ketten"][kette]["reste"]
-    werte = [S["reste"][j].get("relativ") or 0 for j in reste]
-    nummern = [S["reste"][j]["nr"] for j in reste]
-    farben = ["#0072B2" if j in bindestelle else "#bdbdbd" for j in reste]
-    hoehe = 3.6 if S["alphafold"] else 2.8
-    fig = Figure(figsize=(11, hoehe))
-    if S["alphafold"]:
-        ax, ax2 = fig.subplots(2, 1, sharex=True, gridspec_kw={"height_ratios": [2, 1]})
-    else:
-        ax = fig.add_subplot()
-    ax.bar(nummern, werte, width=1.0, color=farben)
-    ax.axhline(20, color="#888", lw=0.8, ls="--")
-    ax.text(nummern[0], 21, "unter 20 % = vergraben", fontsize=7, color="#666")
-    for j, text in positionen:
-        r = S["reste"][j]
-        if r["kette"] == kette:
-            ax.bar([r["nr"]], [max(r.get("relativ") or 0, 3)], width=1.6, color="#D55E00")
-            ax.annotate(text, (r["nr"], max(r.get("relativ") or 0, 3)), textcoords="offset points",
-                        xytext=(0, 4), ha="center", fontsize=8, color="#D55E00")
-    ax.set_ylabel("frei zugänglich (%)", fontsize=8)
-    ax.set_ylim(0, 110)
-    ax.set_title(f"Kette {kette}: Oberfläche je Aminosäure (blau = berührt einen Liganden, rot = gewählte Position)",
-                 fontsize=9, loc="left")
-    for a in [ax] + ([ax2] if S["alphafold"] else []):
-        a.spines[["top", "right"]].set_visible(False)
-        a.tick_params(labelsize=8)
-    if S["alphafold"]:
-        plddt = [float(S["b"][S["reste"][j]["atome"]].mean()) for j in reste]
-        ax2.plot(nummern, plddt, color="#0053D6", lw=1.2)
-        ax2.axhline(70, color="#888", lw=0.8, ls="--")
-        ax2.set_ylim(0, 100)
-        ax2.set_ylabel("pLDDT", fontsize=8)
-        ax2.set_xlabel("Nummer in der Struktur", fontsize=8)
-    else:
-        ax.set_xlabel("Nummer in der Struktur", fontsize=8)
-    fig.tight_layout()
-    return fig
 
 
 def struktur_html(struktur, protein_text=None, positionen="", uniprot="", grenze=4.0, ordner=None):
@@ -939,9 +819,9 @@ def struktur_html(struktur, protein_text=None, positionen="", uniprot="", grenze
                     f"Kette {_e(kette)} in Regenbogenfarben (blau = Anfang, rot = Ende), andere Ketten grau. ")
                  + "Grüne Stäbchen = Liganden, hellblau = Bindestelle, orange = UniProt-Stellen, "
                  "rote Kugel = gewählte Position.</small></div>")
-    teile.append(_ansicht_3d(S, text, None if S["alphafold"] else kette, sorted(bindestelle), gewaehlt, merkmale_3d))
+    teile.append(st.ansicht_3d_html(S, text, None if S["alphafold"] else kette, sorted(bindestelle), gewaehlt, merkmale_3d))
     if kette:
-        teile.append(_bild(_zugaenglichkeit_abbildung(S, kette, bindestelle, gewaehlt)))
+        teile.append(_bild(st.zugaenglichkeit_abbildung(S, kette, bindestelle, gewaehlt)))
 
     # --- Downloads
     csv = ["kette;nummer;aminosaeure;flaeche_A2;frei_prozent;lage;beruehrt_ligand"]

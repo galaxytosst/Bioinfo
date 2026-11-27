@@ -497,3 +497,213 @@ def bewerte_position(S, j, neu=None, ligand_grenze=4.0):
             hinweise.append(f"AlphaFold ist sich hier unsicher (pLDDT {plddt:.0f}). Die Lage ist nur grob.")
     ergebnis["hinweise"] = hinweise
     return ergebnis
+
+
+# ----------------------------------------------------------------------
+# Passende Struktur zu einer Proteinsequenz finden (RCSB-Sequenzsuche)
+# ----------------------------------------------------------------------
+
+def _post_json(url, daten, zeitlimit=60):
+    anfrage = urllib.request.Request(url, data=json.dumps(daten).encode(), method="POST",
+                                     headers={"Content-Type": "application/json",
+                                              "User-Agent": "bioinfo-lernprojekt"})
+    try:
+        with urllib.request.urlopen(anfrage, timeout=zeitlimit) as antwort:
+            text = antwort.read().decode()
+    except urllib.error.HTTPError:
+        raise
+    except (urllib.error.URLError, TimeoutError, OSError) as fehler:
+        raise ConnectionError(f"Keine Verbindung zu {url.split('/')[2]} ({fehler}). "
+                              f"Ist Internet da? In Colab sollte es gehen.") from None
+    return json.loads(text) if text.strip() else {}
+
+
+def suche_struktur(protein, min_identitaet=0.3, anzahl=25):
+    """Sucht in der PDB Strukturen, deren Sequenz zum Protein passt (MMseqs2-Suche von rcsb.org).
+    Bevorzugt: höchste Identität, dann Röntgenstruktur mit Liganden und guter Auflösung.
+    Gibt eine Liste von Kandidaten zurück: {pdb, entitaet, identitaet, abdeckung, aufloesung, titel, liganden}."""
+    protein = protein.upper().rstrip("*")
+    anfrage = {"query": {"type": "terminal", "service": "sequence",
+                         "parameters": {"evalue_cutoff": 0.1, "identity_cutoff": min_identitaet,
+                                        "sequence_type": "protein", "value": protein}},
+               "return_type": "polymer_entity",
+               "request_options": {"scoring_strategy": "sequence", "results_verbosity": "verbose",
+                                   "paginate": {"start": 0, "rows": anzahl}}}
+    antwort = _post_json("https://search.rcsb.org/rcsbsearch/v2/query", anfrage)
+    treffer = []
+    for t in antwort.get("result_set", []):
+        try:
+            m = t["services"][0]["nodes"][0]["match_context"][0]
+        except (KeyError, IndexError):
+            continue
+        pdb, _, entitaet = t["identifier"].partition("_")
+        abdeckung = (m["query_end"] - m["query_beg"] + 1) / max(1, m["query_length"])
+        treffer.append({"pdb": pdb, "entitaet": entitaet, "identitaet": 100 * m["sequence_identity"],
+                        "abdeckung": 100 * abdeckung})
+    if not treffer:
+        return []
+    beste = max(t["identitaet"] for t in treffer)
+    treffer = [t for t in treffer if t["identitaet"] >= beste - 2 and t["abdeckung"] >= 70] or treffer[:5]
+    # Zusatzinfos in einem Aufruf (GraphQL): Methode, Auflösung, Größe, Liganden
+    ids = sorted({t["pdb"] for t in treffer})
+    abfrage = ("{ entries(entry_ids: %s) { rcsb_id struct { title } exptl { method } rcsb_entry_info { "
+               "resolution_combined deposited_atom_count nonpolymer_entity_count } } }" % json.dumps(ids))
+    try:
+        info = {e["rcsb_id"]: e for e in _post_json("https://data.rcsb.org/graphql", {"query": abfrage})
+                ["data"]["entries"] if e}
+    except Exception:
+        info = {}
+    for t in treffer:
+        e = info.get(t["pdb"], {})
+        ei = e.get("rcsb_entry_info") or {}
+        t["aufloesung"] = (ei.get("resolution_combined") or [None])[0]
+        t["atome"] = ei.get("deposited_atom_count") or 0
+        t["liganden"] = ei.get("nonpolymer_entity_count") or 0
+        t["methode"] = ((e.get("exptl") or [{}])[0]).get("method", "")
+        t["titel"] = ((e.get("struct") or {}).get("title") or "").capitalize()
+
+    def rang(t):
+        return (-round(t["identitaet"]), t["atome"] > 90000, "X-RAY" not in t["methode"], t["liganden"] == 0,
+                t["aufloesung"] or 99)
+    return sorted(treffer, key=rang)
+
+
+def uniprot_der_kette(pdb, kette):
+    """UniProt-Nummer des Proteins in einer Kette (über die RCSB-Datenbank, Zuordnung von SIFTS)."""
+    abfrage = ("{ entry(entry_id: %s) { polymer_entities { rcsb_polymer_entity_container_identifiers { "
+               "auth_asym_ids uniprot_ids } } } }" % json.dumps(pdb.upper()))
+    daten = _post_json("https://data.rcsb.org/graphql", {"query": abfrage})
+    for e in ((daten.get("data") or {}).get("entry") or {}).get("polymer_entities") or []:
+        ids = e.get("rcsb_polymer_entity_container_identifiers") or {}
+        if kette in (ids.get("auth_asym_ids") or []) and ids.get("uniprot_ids"):
+            return ids["uniprot_ids"][0]
+    return None
+
+
+# ----------------------------------------------------------------------
+# Anzeige: 3D (3Dmol.js) und Diagramm
+# ----------------------------------------------------------------------
+
+DREIDMOL_URL = "https://cdn.jsdelivr.net/npm/3dmol@2.4.2/build/3Dmol-min.js"
+
+
+def _js_auswahl(S, indizes):
+    """3Dmol-Auswahl {chain, resi} für eine Liste von Rest-Indizes, nach Kette gruppiert."""
+    nach_kette = {}
+    for j in indizes:
+        r = S["reste"][j]
+        nach_kette.setdefault(r["kette"], []).append(r["nr"])
+    return [{"chain": k if k != "_" else "", "resi": sorted(set(v))} for k, v in nach_kette.items()]
+
+
+def ansicht_3d_html(S, pdb_text, kette=None, bindestelle=(), positionen=(), merkmale=(), hoehe=520,
+                    max_beschriftungen=12):
+    """HTML mit 3Dmol.js: Cartoon, Liganden als Stäbchen, Bindestelle hellblau, Positionen rot."""
+    import json as _json
+    import uuid
+    zeilen = [z for z in pdb_text.splitlines()
+              if z.startswith(("ATOM", "HETATM", "TER", "HELIX", "SHEET", "MODEL", "ENDMDL"))
+              and z[17:20].strip() not in ("HOH", "WAT", "DOD")]
+    modell = []
+    for z in zeilen:                         # nur das erste Modell
+        modell.append(z)
+        if z.startswith("ENDMDL"):
+            break
+    kennung = "v" + uuid.uuid4().hex[:10]
+    labels = []
+    for j, text in (positionen if len(positionen) <= max_beschriftungen else []):
+        r = S["reste"][j]
+        labels.append({"text": text, "sel": {"chain": r["kette"], "resi": r["nr"], "atom": "CA"}})
+    befehle = []
+    if S["alphafold"]:
+        befehle.append("v.setStyle({}, {cartoon: {colorfunc: function(a) { return a.b > 90 ? '#0053D6' : "
+                       "a.b > 70 ? '#65CBF3' : a.b > 50 ? '#FFDB13' : '#FF7D45'; }}});")
+    else:
+        befehle.append("v.setStyle({}, {cartoon: {color: '#d0d0d0'}});")
+        if kette:
+            befehle.append(f"v.setStyle({{chain: {_json.dumps(kette)}}}, {{cartoon: {{color: 'spectrum'}}}});")
+    ligand_namen = sorted({S["reste"][j]["name"] for j in S["liganden"]})
+    if ligand_namen:
+        befehle.append(f"v.addStyle({{resn: {_json.dumps(ligand_namen)}}}, "
+                       "{stick: {colorscheme: 'greenCarbon', radius: 0.25}});")
+    for sel in _js_auswahl(S, bindestelle):
+        befehle.append(f"v.addStyle({_json.dumps(sel)}, {{stick: {{colorscheme: 'cyanCarbon', radius: 0.18}}}});")
+    for sel in _js_auswahl(S, [j for j, _t in merkmale]):
+        befehle.append(f"v.addStyle({_json.dumps(sel)}, {{stick: {{colorscheme: 'orangeCarbon', radius: 0.22}}}});")
+    for sel in _js_auswahl(S, [j for j, _t in positionen]):
+        befehle.append(f"v.addStyle({_json.dumps(sel)}, {{sphere: {{color: '#D55E00', scale: 0.75}}}});")
+    befehle.append("L.forEach(function(l) { v.addLabel(l.text, {fontSize: 13, fontColor: 'white', "
+                   "backgroundColor: '#D55E00', backgroundOpacity: 0.85, inFront: true}, l.sel); });")
+    zoom = _json.dumps({"chain": kette}) if kette else "{}"
+    skript = f"""
+<div id="{kennung}" style="width:100%;height:{hoehe}px;position:relative;border:1px solid #ddd;border-radius:6px;
+background:#fff;"><div style="padding:12px;color:#666;font-family:sans-serif;">3D-Ansicht wird geladen …</div></div>
+<script>
+(function() {{
+  var pdb = {_json.dumps(chr(10).join(modell))};
+  var L = {_json.dumps(labels)};
+  function zeichne() {{
+    var el = document.getElementById("{kennung}");
+    el.innerHTML = "";
+    var v = $3Dmol.createViewer(el, {{backgroundColor: "white"}});
+    v.addModel(pdb, "pdb");
+    {chr(10).join("    " + b for b in befehle)}
+    v.zoomTo({zoom});
+    v.render();
+  }}
+  if (window.$3Dmol) {{ zeichne(); return; }}
+  var s = document.createElement("script");
+  s.src = "{DREIDMOL_URL}";
+  s.onload = zeichne;
+  s.onerror = function() {{
+    document.getElementById("{kennung}").innerHTML = "<div style='padding:12px'>Die 3D-Ansicht konnte nicht " +
+      "geladen werden (keine Verbindung zu cdn.jsdelivr.net). Die Tabellen oben gelten trotzdem.</div>";
+  }};
+  document.head.appendChild(s);
+}})();
+</script>"""
+    return skript
+
+
+def zugaenglichkeit_abbildung(S, kette, bindestelle=(), positionen=(), max_beschriftungen=12,
+                              titel_rot="gewählte Position"):
+    """Balken: relative Zugänglichkeit jedes Restes der Kette; blau = berührt Ligand, rot = gewählte Position."""
+    from matplotlib.figure import Figure
+    reste = S["ketten"][kette]["reste"]
+    werte = [S["reste"][j].get("relativ") or 0 for j in reste]
+    nummern = [S["reste"][j]["nr"] for j in reste]
+    farben = ["#0072B2" if j in bindestelle else "#bdbdbd" for j in reste]
+    hoehe = 3.6 if S["alphafold"] else 2.8
+    fig = Figure(figsize=(11, hoehe))
+    if S["alphafold"]:
+        ax, ax2 = fig.subplots(2, 1, sharex=True, gridspec_kw={"height_ratios": [2, 1]})
+    else:
+        ax = fig.add_subplot()
+    ax.bar(nummern, werte, width=1.0, color=farben)
+    ax.axhline(20, color="#888", lw=0.8, ls="--")
+    ax.text(nummern[0], 21, "unter 20 % = vergraben", fontsize=7, color="#666")
+    for j, text in positionen:
+        r = S["reste"][j]
+        if r["kette"] == kette:
+            ax.bar([r["nr"]], [max(r.get("relativ") or 0, 3)], width=1.6, color="#D55E00")
+            if len(positionen) <= max_beschriftungen:
+                ax.annotate(text, (r["nr"], max(r.get("relativ") or 0, 3)), textcoords="offset points",
+                            xytext=(0, 4), ha="center", fontsize=8, color="#D55E00")
+    ax.set_ylabel("frei zugänglich (%)", fontsize=8)
+    ax.set_ylim(0, 110)
+    ax.set_title(f"Kette {kette}: Oberfläche je Aminosäure (blau = berührt einen Liganden, rot = {titel_rot})",
+                 fontsize=9, loc="left")
+    for a in [ax] + ([ax2] if S["alphafold"] else []):
+        a.spines[["top", "right"]].set_visible(False)
+        a.tick_params(labelsize=8)
+    if S["alphafold"]:
+        plddt = [float(S["b"][S["reste"][j]["atome"]].mean()) for j in reste]
+        ax2.plot(nummern, plddt, color="#0053D6", lw=1.2)
+        ax2.axhline(70, color="#888", lw=0.8, ls="--")
+        ax2.set_ylim(0, 100)
+        ax2.set_ylabel("pLDDT", fontsize=8)
+        ax2.set_xlabel("Nummer in der Struktur", fontsize=8)
+    else:
+        ax.set_xlabel("Nummer in der Struktur", fontsize=8)
+    fig.tight_layout()
+    return fig
