@@ -1,6 +1,5 @@
 # NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
 NM_000546.6    = Mensch TP53
-XM_016931470.3 = Schimpanse TP53
 NM_001047151.2 = Rhesusaffe TP53
 NM_011640.4    = Hausmaus TP53
 NM_030989.4    = Ratte TP53

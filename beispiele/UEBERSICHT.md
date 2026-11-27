@@ -58,7 +58,7 @@ Jedes Projekt ist ein Ordner. In der App (Box 1) bei PROJEKTE den Ordnernamen w�
 | `29_arten_cytochrom_c` | Cytochrom c überträgt in den Mitochondrien Elektronen in der Atmungskette und ist eines der am stärksten konservierten Proteine. | 12 |
 | `30_arten_myoglobin` | Myoglobin speichert Sauerstoff im Muskel. | 13 |
 | `31_arten_haemoglobin_alpha` | Hämoglobin α (HBA1 bzw. Hba-a1) in 9 Wirbeltieren (NCBI RefSeq). | 9 |
-| `32_arten_p53` | Das Tumorsuppressor-Protein p53 in 13 Arten (NCBI RefSeq). | 13 |
+| `32_arten_p53` | Das Tumorsuppressor-Protein p53 in 12 Arten (NCBI RefSeq). | 12 |
 | `33_arten_rhodopsin` | Rhodopsin ist das Sehpigment der Stäbchen in der Netzhaut, ein G-Protein-gekoppelter Rezeptor mit sieben Transmembran-Helices. | 11 |
 | `34_arten_fellfarbe_mc1r` | Der Melanocortin-1-Rezeptor (MC1R) steuert, ob Pigmentzellen dunkles (Eumelanin) oder rötlich-gelbes Pigment (Phäomelanin) bilden. | 13 |
 | `35_arten_leptin` | Leptin ist ein Hormon aus dem Fettgewebe, das dem Gehirn meldet, wie viel Fett gespeichert ist. | 10 |
@@ -67,7 +67,7 @@ Jedes Projekt ist ein Ordner. In der App (Box 1) bei PROJEKTE den Ordnernamen w�
 | `38_arten_aktin` | β-Aktin bildet einen Teil des Zellskeletts und ist in allen Zellen reichlich vorhanden (es wird deshalb oft als Kontrolle im Labor benutzt). | 11 |
 | `39_arten_erythropoetin` | Erythropoetin (EPO) ist das Hormon aus der Niere, das die Bildung roter Blutkörperchen anregt. | 10 |
 | `40_arten_gapdh` | GAPDH ist ein Enzym der Glykolyse, also des Zuckerabbaus, den fast alle Lebewesen betreiben. | 12 |
-| `41_arten_tyrosinase` | Tyrosinase ist das Schlüsselenzym der Melaninbildung. | 11 |
+| `41_arten_tyrosinase` | Tyrosinase ist das Schlüsselenzym der Melaninbildung. | 9 |
 | `42_arten_pax6_augen` | PAX6 ist ein „Mastergen“ der Augenentwicklung. | 12 |
 | `43_arten_sry_geschlecht` | SRY auf dem Y-Chromosom löst bei Säugetieren die Entwicklung zum Männchen aus. | 12 |
 | `44_arten_foxp2_sprache` | FOXP2 ist ein Transkriptionsfaktor, der für Sprech- und Lautlernen wichtig ist. | 8 |

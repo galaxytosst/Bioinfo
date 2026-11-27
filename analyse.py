@@ -511,7 +511,12 @@ def _strukturanalyse(P, E, ausgabe_ordner, B):
     # Unterschiede aus dem Protein-Vergleich auf die Struktur legen
     orte = {}
     for v in (P or {}).get("vergleiche", []):
-        for d in v["unterschiede"]:
+        unterschiede = v["unterschiede"]
+        verkuerzt = v["laenge"] < 0.9 * len(protein) and unterschiede
+        if verkuerzt:                       # Stopp oder Frameshift: nur die erste veränderte Stelle zählt
+            erste = min(unterschiede, key=lambda d: d["position"])
+            unterschiede = [{**erste, "art": "Austausch", "alt": "verkürzt", "ende": erste["position"]}]
+        for d in unterschiede:
             for pos in range(d["position"], d["ende"] + 1):
                 j = z["zuordnung"].get(pos)
                 if j is None:
