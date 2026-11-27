@@ -1,0 +1,8 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NM_000239.3    = Mensch LYZ
+NM_013590.4    = Hausmaus LYZ
+NM_001078159.1 = Rind LYZ
+NM_214392.2    = Schwein LYZ
+NM_001434680.1 = Pferd LYZ
+NM_205281.2    = Huhn LYZ
+NM_139180.1    = Zebrafisch LYZ

@@ -1,0 +1,5 @@
+# Mutations-Rezept: Jede Zeile baut eine bekannte Mutation (HGVS-Schreibweise) in die Basis ein.
+# Spalten: Name  c.-Mutation  erwartete Proteinänderung (wird geprüft)  # Kommentar
+BASIS: NM_005957.5
+MTHFR_C677T   c.665C>T   p.Ala222Val  # A222V
+MTHFR_A1298C  c.1286A>C  p.Glu429Ala  # E429A

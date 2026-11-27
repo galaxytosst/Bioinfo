@@ -1,0 +1,6 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NC_000908.2 = Mycoplasma genitalium
+NC_000912.1 = Mycoplasma pneumoniae
+NC_002528.1 = Buchnera aphidicola
+NC_008512.1 = Carsonella ruddii
+NC_005213.1 = Nanoarchaeum equitans

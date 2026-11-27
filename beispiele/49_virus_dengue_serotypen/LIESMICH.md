@@ -1,0 +1,3 @@
+Dengue-Viren (Flaviviren, RNA-Genom von etwa 10.700 Basen) werden von Stechmücken übertragen. Es gibt vier Serotypen. Wer nach einer ersten Infektion mit einem anderen Serotyp angesteckt wird, erkrankt oft schwerer (antikörperabhängige Verstärkung). Hier die Referenzgenome der vier Serotypen und als Vergleich das Zika-Virus (Stamm MR766 aus Uganda 1947 und ein Stamm aus Brasilien 2015).
+
+Erwartung: Das Genom enthält einen einzigen riesigen ORF (Polyprotein, über 3.300 Aminosäuren), der später in zehn Proteine zerschnitten wird. Die vier Dengue-Serotypen sind sich nur zu etwa 60 bis 75 % ähnlich. Die beiden Zika-Stämme stehen eng zusammen und außerhalb der Dengue-Gruppe.

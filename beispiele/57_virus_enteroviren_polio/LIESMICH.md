@@ -1,0 +1,3 @@
+Enteroviren: Polio (Kinderlähmung, fast ausgerottet), Coxsackie-Viren (Hand-Fuß-Mund-Krankheit, Herzmuskelentzündung), Enterovirus D68 und Rhinoviren (Schnupfen). Alle haben ein RNA-Genom von etwa 7.400 Basen mit einem einzigen Polyprotein. Referenzgenome von NCBI RefSeq.
+
+Erwartung: Ein großer ORF von etwa 2.200 Aminosäuren pro Genom. Die Viren gehören zu verschiedenen Arten: Polio zu Enterovirus C, Coxsackie A2 und Enterovirus A zu Art A, Coxsackie B3 und Enterovirus B zu Art B, D68 zu Art D. Im Stammbaum sollten die Paare derselben Art zusammenstehen; die Rhinoviren bilden eine eigene Gruppe.

@@ -1,0 +1,9 @@
+# Mutations-Rezept: Jede Zeile baut eine bekannte Mutation (HGVS-Schreibweise) in die Basis ein.
+# Spalten: Name  c.-Mutation  erwartete Proteinänderung (wird geprüft)  # Kommentar
+BASIS: NM_001009481.1
+VRQ      c.407C>T  p.Ala136Val  # stark empfänglich
+AHQ      c.461G>A  p.Arg154His  # atypische Scrapie
+ARR      c.512A>G  p.Gln171Arg  # kaum empfänglich
+ARH      c.513G>T  p.Gln171His
+ARK      c.511C>A  p.Gln171Lys
+AF141RQ  c.421C>T  p.Leu141Phe  # atypische Scrapie (Nor98)

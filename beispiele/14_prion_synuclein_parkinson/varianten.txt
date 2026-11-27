@@ -1,0 +1,9 @@
+# Mutations-Rezept: Jede Zeile baut eine bekannte Mutation (HGVS-Schreibweise) in die Basis ein.
+# Spalten: Name  c.-Mutation  erwartete Proteinänderung (wird geprüft)  # Kommentar
+BASIS: NM_000345.4
+SNCA_A30P  c.88G>C   p.Ala30Pro
+SNCA_E46K  c.136G>A  p.Glu46Lys
+SNCA_H50Q  c.150T>G  p.His50Gln
+SNCA_G51D  c.152G>A  p.Gly51Asp
+SNCA_A53T  c.157G>A  p.Ala53Thr
+SNCA_A53E  c.158C>A  p.Ala53Glu

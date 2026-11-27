@@ -1,0 +1,10 @@
+{
+  "REFERENZ": "NM_000311.5",
+  "AUSSENGRUPPE": [
+    "NM_205465.3"
+  ],
+  "NUR_CDS": true,
+  "ORF_MIN_AMINOSAEUREN": 100,
+  "UNIPROT": "P04156",
+  "SCHRITTE": "alles"
+}

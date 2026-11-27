@@ -1,0 +1,8 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NC_002017.1 = H1N1 PR8 (1934)
+NC_026433.1 = H1N1 California (2009)
+NC_007362.1 = H5N1 Gans Guangdong (1996)
+NC_004908.1 = H9N2 Hongkong (1999)
+NC_007366.1 = H3N2 New York (2004)
+NC_026425.1 = H7N9 Shanghai (2013)
+NC_002207.1 = Influenza B Lee (1940)

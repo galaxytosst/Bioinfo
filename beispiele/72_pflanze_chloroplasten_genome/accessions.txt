@@ -1,0 +1,9 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NC_005353.1 = Grünalge Chlamydomonas
+NC_037507.1 = Lebermoos Marchantia
+NC_005087.2 = Laubmoos Physcomitrella
+NC_001631.1 = Kiefer
+NC_016986.1 = Ginkgo
+NC_001879.2 = Tabak
+NC_001320.1 = Reis
+NC_001666.2 = Mais

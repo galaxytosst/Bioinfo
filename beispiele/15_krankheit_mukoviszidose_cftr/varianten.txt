@@ -1,0 +1,9 @@
+# Mutations-Rezept: Jede Zeile baut eine bekannte Mutation (HGVS-Schreibweise) in die Basis ein.
+# Spalten: Name  c.-Mutation  erwartete Proteinänderung (wird geprüft)  # Kommentar
+BASIS: NM_000492.4
+CF_F508del  c.1521_1523delCTT  p.Phe508del   # häufigste Mutation
+CF_G542X    c.1624G>T          p.Gly542Ter   # Nonsense
+CF_G551D    c.1652G>A          p.Gly551Asp   # Gating-Mutation
+CF_R117H    c.350G>A           p.Arg117His   # milde Form
+CF_W1282X   c.3846G>A          p.Trp1282Ter  # Nonsense
+CF_N1303K   c.3909C>G          p.Asn1303Lys

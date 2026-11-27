@@ -1,0 +1,8 @@
+# Mutations-Rezept: Jede Zeile baut eine bekannte Mutation (HGVS-Schreibweise) in die Basis ein.
+# Spalten: Name  c.-Mutation  erwartete Proteinänderung (wird geprüft)  # Kommentar
+BASIS: NM_002386.4
+MC1R_V60L   c.178G>T  p.Val60Leu
+MC1R_D84E   c.252C>A  p.Asp84Glu
+MC1R_R151C  c.451C>T  p.Arg151Cys  # rote Haare
+MC1R_R160W  c.478C>T  p.Arg160Trp  # rote Haare
+MC1R_D294H  c.880G>C  p.Asp294His  # rote Haare

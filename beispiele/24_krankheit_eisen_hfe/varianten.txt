@@ -1,0 +1,6 @@
+# Mutations-Rezept: Jede Zeile baut eine bekannte Mutation (HGVS-Schreibweise) in die Basis ein.
+# Spalten: Name  c.-Mutation  erwartete Proteinänderung (wird geprüft)  # Kommentar
+BASIS: NM_000410.4
+HFE_C282Y  c.845G>A  p.Cys282Tyr
+HFE_H63D   c.187C>G  p.His63Asp
+HFE_S65C   c.193A>T  p.Ser65Cys

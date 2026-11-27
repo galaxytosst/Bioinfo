@@ -1,0 +1,9 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NC_002058.3 = Poliovirus 1
+NC_001612.1 = Enterovirus A
+NC_001472.1 = Enterovirus B
+NC_038307.1 = Coxsackievirus B3
+NC_038306.1 = Coxsackievirus A2
+NC_038308.1 = Enterovirus D68
+NC_038311.1 = Rhinovirus 1
+NC_038312.1 = Rhinovirus 3

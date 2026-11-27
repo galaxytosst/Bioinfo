@@ -1,0 +1,5 @@
+{
+  "NUR_CDS": true,
+  "ORF_MIN_AMINOSAEUREN": 80,
+  "SCHRITTE": "ORFs, Protein-Vergleich, Stammbaum"
+}

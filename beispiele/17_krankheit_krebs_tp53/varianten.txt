@@ -1,0 +1,10 @@
+# Mutations-Rezept: Jede Zeile baut eine bekannte Mutation (HGVS-Schreibweise) in die Basis ein.
+# Spalten: Name  c.-Mutation  erwartete Proteinänderung (wird geprüft)  # Kommentar
+BASIS: NM_000546.6
+p53_R175H  c.524G>A  p.Arg175His
+p53_Y220C  c.659A>G  p.Tyr220Cys
+p53_G245S  c.733G>A  p.Gly245Ser
+p53_R248Q  c.743G>A  p.Arg248Gln
+p53_R248W  c.742C>T  p.Arg248Trp
+p53_R273H  c.818G>A  p.Arg273His
+p53_R282W  c.844C>T  p.Arg282Trp

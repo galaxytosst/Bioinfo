@@ -1,0 +1,2 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NM_000410.4 = Mensch HFE Referenz

@@ -1,0 +1,5 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+J01749.1 = pBR322
+L09137.2 = pUC19c
+X06403.1 = pACYC184
+X02513.1 = M13mp18

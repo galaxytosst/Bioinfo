@@ -1,0 +1,3 @@
+Die Prionprotein-Familie: Neben PrP (Gen PRNP) gibt es bei Säugetieren Doppel (PRND, liegt im Genom direkt neben PRNP) und Shadoo (SPRN). Alle drei sind an der Zelloberfläche verankert. Doppel ähnelt dem hinteren, gefalteten Teil von PrP, Shadoo eher dem vorderen, ungeordneten Teil. Je ein Gen von Mensch und Maus (NCBI RefSeq).
+
+Erwartung: Die Proteine derselben Familie (z. B. Mensch-PrP und Maus-PrP) sind sich sehr ähnlich. Zwischen PrP, Doppel und Shadoo ist die Ähnlichkeit gering (meist unter 30 % gleiche Aminosäuren im globalen Alignment): eine entfernte Verwandtschaft, die man in der Sequenz kaum noch sieht. Im Stammbaum bilden die drei Proteine je eine eigene Gruppe.

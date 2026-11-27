@@ -1,0 +1,3 @@
+Die Blutgruppen A, B und O entstehen durch Varianten eines einzigen Gens (ABO), das eine Glykosyltransferase codiert. Das A-Enzym hängt N-Acetylgalactosamin an die Zuckerkette der roten Blutkörperchen, das B-Enzym Galactose. Sie unterscheiden sich nur an vier Aminosäuren (176, 235, 266, 268). Bei Blutgruppe O (häufigstes Allel O1) fehlt eine einzige Base (c.261delG), das Leseraster verschiebt sich und es entsteht kein aktives Enzym. Referenz ist die echte mRNA (NCBI NM_020469.3, A-Allel), B und O werden nach varianten.txt eingebaut.
+
+Erwartung: B hat vier Missense-Unterschiede zu A, O hat einen Frameshift kurz nach dem Anfang (Protein nur etwa 117 statt 354 Aminosäuren).

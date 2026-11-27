@@ -1,0 +1,8 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NC_002549.1 = Ebola Zaire (1976)
+NC_006432.1 = Ebola Sudan
+NC_014372.1 = Ebola Taï Forest
+NC_014373.1 = Ebola Bundibugyo
+NC_004161.1 = Ebola Reston
+NC_001608.3 = Marburg-Virus
+NC_016144.1 = Lloviu-Virus

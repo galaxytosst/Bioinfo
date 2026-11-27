@@ -1,0 +1,3 @@
+Amyotrophe Lateralsklerose (ALS) zerstört die motorischen Nervenzellen. Etwa 10 % der Fälle sind erblich, ein Teil davon durch Mutationen in der Superoxid-Dismutase 1 (SOD1). Die mutierten Proteine falten sich falsch und verklumpen (prion-ähnlich). Referenz ist die echte mRNA (NCBI NM_000454.5). Eingebaut werden A4V, G37R, H46R, D90A und G93A. Achtung: Die klassischen Namen zählen ohne das Start-Methionin, HGVS zählt es mit, deshalb heißt A4V hier p.Ala5Val und G93A p.Gly94Ala.
+
+Erwartung: Fünf Missense-Mutationen. In der 3D-Struktur (automatisch gesucht) bindet SOD1 Kupfer und Zink; H46R liegt an einer Metall-Bindestelle.

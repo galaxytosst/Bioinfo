@@ -1,0 +1,9 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NC_045512.2 = SARS-CoV-2 (2019)
+MN996532.2  = Fledermaus-CoV RaTG13
+NC_004718.3 = SARS-CoV-1 (2003)
+NC_019843.3 = MERS-CoV (2012)
+NC_006213.1 = HCoV-OC43
+NC_006577.2 = HCoV-HKU1
+NC_002645.1 = HCoV-229E
+NC_005831.2 = HCoV-NL63

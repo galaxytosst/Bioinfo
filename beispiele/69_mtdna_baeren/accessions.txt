@@ -1,0 +1,7 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NC_003427.1 = Braunbär
+NC_003428.1 = Eisbär
+NC_011112.1 = Höhlenbär
+NC_003426.1 = Amerikanischer Schwarzbär
+NC_009969.1 = Brillenbär
+NC_009492.1 = Großer Panda

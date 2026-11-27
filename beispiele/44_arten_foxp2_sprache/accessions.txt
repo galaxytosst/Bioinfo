@@ -1,0 +1,9 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NM_014491.4    = Mensch FOXP2
+NM_001009020.3 = Schimpanse FOXP2
+NM_001279537.1 = Gorilla FOXP2
+XM_054559691.2 = Orang-Utan FOXP2
+NM_001033021.1 = Rhesusaffe FOXP2
+NM_053242.4    = Hausmaus FOXP2
+NM_001048263.2 = Zebrafink FOXP2
+NM_001030082.4 = Zebrafisch FOXP2

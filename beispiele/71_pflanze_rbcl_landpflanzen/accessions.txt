@@ -1,0 +1,10 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+KJ145987.1 = Lebermoos (Marchantia)
+X74156.1   = Laubmoos (Physcomitrella)
+OK181886.1 = Moosfarn (Selaginella)
+JQ512540.1 = Ginkgo
+JQ512595.1 = Kiefer (Pinus thunbergii)
+MH270451.1 = Magnolie
+L24073.1   = Reis
+Z11973.1   = Mais
+LT576836.1 = Tabak

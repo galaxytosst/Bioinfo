@@ -1,0 +1,3 @@
+Cytochrom c überträgt in den Mitochondrien Elektronen in der Atmungskette und ist eines der am stärksten konservierten Proteine. Es war eines der ersten Proteine, an denen man in den 1960er-Jahren Stammbäume aus Sequenzen berechnet hat (Margoliash, Fitch). Hier 12 Arten von Mensch bis Bäckerhefe (NCBI RefSeq; bei der Hefe ist es das Gen CYC1).
+
+Erwartung: Mensch und Schimpanse haben identisches Cytochrom c. Zwischen Mensch und Hefe sind trotz über einer Milliarde Jahren getrennter Entwicklung noch etwa 60 % der Aminosäuren gleich. Auf DNA-Ebene ist die Ähnlichkeit viel geringer als auf Proteinebene, weil viele Mutationen stumm sind.

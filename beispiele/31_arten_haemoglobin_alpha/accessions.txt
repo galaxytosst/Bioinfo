@@ -1,0 +1,10 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NM_000558.5    = Mensch HBA
+NM_001042626.1 = Schimpanse HBA
+NM_001266776.2 = Rhesusaffe HBA
+NM_008218.2    = Hausmaus HBA
+NM_001007722.2 = Ratte HBA
+NM_001077422.3 = Rind HBA
+NM_001004376.4 = Huhn HBA
+NM_203529.1    = Krallenfrosch HBA
+NM_131257.3    = Zebrafisch HBA

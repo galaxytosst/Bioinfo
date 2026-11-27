@@ -1,0 +1,5 @@
+# Mutations-Rezept: Jede Zeile baut eine bekannte Mutation (HGVS-Schreibweise) in die Basis ein.
+# Spalten: Name  c.-Mutation  erwartete Proteinänderung (wird geprüft)  # Kommentar
+BASIS: NM_020469.3
+Blutgruppe_B   c.[526C>G;703G>A;796C>A;803G>C]  p.[Arg176Gly;Gly235Ser;Leu266Met;Gly268Ala]
+Blutgruppe_O1  c.261delG                        p.Thr88ProfsTer31

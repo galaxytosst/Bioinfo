@@ -1,0 +1,3 @@
+FOXP2 ist ein Transkriptionsfaktor, der für Sprech- und Lautlernen wichtig ist. Mutationen verursachen beim Menschen eine schwere Sprechstörung (Familie „KE“). Mensch und Schimpanse unterscheiden sich an zwei Aminosäuren (T303N und N325S, Enard et al. 2002), die damals als Hinweis auf Selektion beim Menschen gedeutet wurden. Spätere Daten (auch von Neandertalern, die dieselben zwei Varianten tragen) haben das relativiert. Singvögel wie der Zebrafink brauchen FOXP2 zum Gesangslernen. Hier 8 Arten (NCBI RefSeq).
+
+Erwartung: Extrem konserviert: Maus und Mensch unterscheiden sich an nur 3 Aminosäuren (ohne Längenunterschiede in den Glutamin-Wiederholungen). Die Variantenanalyse gegen den Menschen zeigt beim Schimpansen die zwei berühmten Austausche.

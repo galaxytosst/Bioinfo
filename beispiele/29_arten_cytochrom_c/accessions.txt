@@ -1,0 +1,13 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NM_018947.6    = Mensch CYCS
+NM_001071821.1 = Schimpanse CYCS
+XM_028845948.2 = Rhesusaffe CYCS
+NM_007808.5    = Hausmaus CYCS
+NM_012839.2    = Ratte CYCS
+NM_001046061.2 = Rind CYCS
+NM_001129970.1 = Schwein CYCS
+NM_001197045.1 = Hund CYCS
+NM_001079478.2 = Huhn CYCS
+NM_203564.1    = Krallenfrosch CYCS
+NM_001299055.1 = Taufliege CYCS
+NM_001181706.1 = Bäckerhefe CYCS

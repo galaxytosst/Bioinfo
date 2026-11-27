@@ -1,0 +1,4 @@
+# Mutations-Rezept: Jede Zeile baut eine bekannte Mutation (HGVS-Schreibweise) in die Basis ein.
+# Spalten: Name  c.-Mutation  erwartete Proteinänderung (wird geprüft)  # Kommentar
+BASIS: NM_000579.4
+CCR5_delta32  c.554_585del  p.Ser185IlefsTer32  # Δ32

@@ -1,0 +1,3 @@
+Insulin in 12 Wirbeltieren (NCBI RefSeq). Das Gen codiert Präproinsulin: Signalpeptid, B-Kette, C-Peptid, A-Kette. Nur B- und A-Kette bilden das fertige Hormon, verbunden durch zwei Disulfidbrücken. Historisch wichtig: Diabetiker wurden jahrzehntelang mit Insulin von Rind und Schwein behandelt. Schweineinsulin unterscheidet sich vom menschlichen nur an einer Aminosäure der fertigen Ketten (B30), Rinderinsulin an dreien. Maus und Ratte haben zwei Insulin-Gene, hier jeweils Ins2.
+
+Erwartung: B- und A-Kette sind stark konserviert, das C-Peptid und das Signalpeptid variieren viel mehr. Das sieht man in der Grafik der Unterschiede entlang des Proteins. Der Zebrafisch steht im Stammbaum außen.

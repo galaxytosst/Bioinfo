@@ -1,0 +1,5 @@
+# Mutations-Rezept: Jede Zeile baut eine bekannte Mutation (HGVS-Schreibweise) in die Basis ein.
+# Spalten: Name  c.-Mutation  erwartete Proteinänderung (wird geprüft)  # Kommentar
+BASIS: NM_000041.4
+APOE_e4  c.388T>C  p.Cys130Arg  # Risiko-Allel
+APOE_e2  c.526C>T  p.Arg176Cys

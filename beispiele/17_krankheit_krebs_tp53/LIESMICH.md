@@ -1,0 +1,3 @@
+p53 ist der „Wächter des Genoms“: Bei DNA-Schäden stoppt es die Zellteilung oder löst Zelltod aus. TP53 ist das am häufigsten mutierte Gen in menschlichen Tumoren. Die meisten Mutationen sind Missense-Mutationen in der DNA-Bindedomäne, mit einigen „Hotspots“. Referenz ist die echte mRNA (NCBI NM_000546.6), die Hotspot-Varianten werden nach varianten.txt eingebaut: R175H, Y220C, G245S, R248Q, R248W, R273H, R282W.
+
+Erwartung: Sieben Missense-Mutationen. In der 3D-Struktur (automatisch gesucht, p53-Kern mit DNA) liegen R248 und R273 direkt an der DNA (Kontakt-Mutationen). R175H, Y220C, G245S und R282W stören eher die Faltung (Struktur-Mutationen); Y220C bildet eine Tasche an der Oberfläche, für die Medikamente entwickelt werden.

@@ -1,0 +1,8 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NC_001601.1 = Blauwal
+NC_002503.2 = Pottwal
+NC_012059.1 = Großer Tümmler
+NC_000889.1 = Flusspferd
+NC_006853.1 = Rind
+NC_000845.1 = Schwein
+NC_001640.1 = Pferd

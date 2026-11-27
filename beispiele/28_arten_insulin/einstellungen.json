@@ -1,0 +1,9 @@
+{
+  "NUR_CDS": true,
+  "ORF_MIN_AMINOSAEUREN": 50,
+  "REFERENZ": "NM_000207.3",
+  "AUSSENGRUPPE": [
+    "NM_131056.1"
+  ],
+  "UNIPROT": "P01308"
+}

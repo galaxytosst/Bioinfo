@@ -1,0 +1,7 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NC_000934.1 = Afrikanischer Elefant
+NC_005129.2 = Asiatischer Elefant
+NC_007596.2 = Wollhaarmammut
+NC_009574.1 = Amerikanisches Mastodon
+NC_003314.1 = Dugong (Seekuh)
+NC_004919.1 = Klippschliefer

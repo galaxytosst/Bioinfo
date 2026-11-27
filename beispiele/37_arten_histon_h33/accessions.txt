@@ -1,0 +1,13 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NM_002107.7    = Mensch H3-3A
+NM_001098568.1 = Schimpanse H3-3A
+XM_015115178.3 = Rhesusaffe H3-3A
+NM_008210.6    = Hausmaus H3-3A
+NM_001402225.1 = Ratte H3-3A
+NM_001014389.2 = Rind H3-3A
+NM_213930.1    = Schwein H3-3A
+XM_038542821.1 = Hund H3-3A
+NM_001031482.3 = Huhn H3-3A
+NM_001005101.1 = Krallenfrosch H3-3A
+NM_212996.1    = Zebrafisch H3-3A
+NM_001273153.1 = Taufliege H3-3A

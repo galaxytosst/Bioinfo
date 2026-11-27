@@ -1,0 +1,11 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NC_002008.4 = Hund
+NC_008092.1 = Wolf
+NC_006853.1 = Rind
+NC_013996.1 = Auerochse
+NC_001941.1 = Schaf
+NC_005044.2 = Ziege
+NC_000845.1 = Schwein
+NC_001640.1 = Pferd
+NC_001700.1 = Katze
+NC_053523.1 = Huhn

@@ -1,0 +1,9 @@
+{
+  "ORF_MIN_AMINOSAEUREN": 50,
+  "STARTCODONS": [
+    "ATG",
+    "GTG",
+    "TTG"
+  ],
+  "SCHRITTE": "ORFs, Stammbaum"
+}

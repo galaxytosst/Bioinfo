@@ -1,0 +1,3 @@
+Apolipoprotein E transportiert Fette im Blut und im Gehirn. Es gibt drei häufige Varianten, die sich an zwei Aminosäuren unterscheiden: ε2 (Cys130, Cys176), ε3 (Cys130, Arg176, häufigste) und ε4 (Arg130, Arg176). ε4 ist der stärkste bekannte genetische Risikofaktor für die häufige, spät beginnende Alzheimer-Krankheit, ε2 wirkt eher schützend. In älterer Literatur heißen die Positionen 112 und 158, weil dort ohne das 18 Aminosäuren lange Signalpeptid gezählt wird. Referenz ist die echte mRNA (NCBI NM_000041.4, ε3), ε2 und ε4 werden nach varianten.txt eingebaut.
+
+Erwartung: Je eine Missense-Mutation, p.Cys130Arg (ε4) und p.Arg176Cys (ε2).

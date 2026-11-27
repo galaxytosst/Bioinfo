@@ -1,0 +1,11 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NM_000799.4    = Mensch EPO
+XM_519268.6    = Schimpanse EPO
+NM_001042736.1 = Rhesusaffe EPO
+NM_007942.2    = Hausmaus EPO
+NM_017001.2    = Ratte EPO
+NM_173909.2    = Rind EPO
+NM_214134.1    = Schwein EPO
+XM_038533714.1 = Hund EPO
+NM_001246265.1 = Krallenfrosch EPO
+NM_001115128.1 = Zebrafisch EPO

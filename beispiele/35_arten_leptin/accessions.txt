@@ -1,0 +1,11 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NM_000230.3    = Mensch LEP
+NM_001193672.1 = Schimpanse LEP
+NM_001042755.1 = Rhesusaffe LEP
+NM_008493.3    = Hausmaus LEP
+NM_013076.3    = Ratte LEP
+NM_173928.2    = Rind LEP
+NM_213840.2    = Schwein LEP
+NM_001003070.1 = Hund LEP
+XM_002931835.4 = Krallenfrosch LEP
+NM_001128576.1 = Zebrafisch LEP

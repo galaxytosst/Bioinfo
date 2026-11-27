@@ -1,0 +1,5 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NM_000539.3    = RHO (Stäbchen)
+NM_001385125.1 = OPN1SW (blau)
+NM_000513.2    = OPN1MW (grün)
+NM_020061.6    = OPN1LW (rot)

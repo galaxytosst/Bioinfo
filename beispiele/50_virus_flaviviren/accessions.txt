@@ -1,0 +1,8 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NC_002031.1 = Gelbfieber-Virus
+NC_001474.2 = Dengue-Virus 2
+NC_012532.1 = Zika-Virus
+NC_009942.1 = West-Nil-Virus Linie 1
+NC_001563.2 = West-Nil-Virus Linie 2
+NC_001437.1 = Japanische-Enzephalitis-Virus
+NC_001672.1 = FSME-Virus

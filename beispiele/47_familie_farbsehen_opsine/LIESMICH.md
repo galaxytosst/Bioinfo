@@ -1,0 +1,3 @@
+Farbsehen beim Menschen: Drei Zapfen-Opsine für kurze (blau, OPN1SW), mittlere (grün, OPN1MW) und lange Wellenlängen (rot, OPN1LW) sowie Rhodopsin (RHO) der Stäbchen für das Dämmerungssehen. Rot- und Grün-Opsin liegen nebeneinander auf dem X-Chromosom und sind durch eine Genverdopplung bei den Altweltaffen entstanden. Deshalb sind Rot-Grün-Sehschwächen bei Männern häufig (etwa 8 % in Europa). Alle von NCBI RefSeq.
+
+Erwartung: Rot- und Grün-Opsin sind sich extrem ähnlich (etwa 96 % gleiche Aminosäuren); die wenigen Unterschiede verschieben das Absorptionsmaximum um etwa 30 nm. Blau-Opsin und Rhodopsin sind deutlich entfernter.

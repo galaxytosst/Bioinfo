@@ -1,0 +1,14 @@
+# Mutations-Rezept: Jede Zeile baut eine bekannte Mutation (HGVS-Schreibweise) in die Basis ein.
+# Spalten: Name  c.-Mutation  erwartete Proteinänderung (wird geprüft)  # Kommentar
+BASIS: NM_000311.5
+PRNP_129V            c.385A>G           p.Met129Val              # Polymorphismus
+GSS_P102L            c.305C>T           p.Pro102Leu              # GSS
+GSS_A117V            c.350C>T           p.Ala117Val              # GSS
+FFI_D178N_129M       c.532G>A           p.Asp178Asn              # Tödliche familiäre Schlaflosigkeit
+CJD_D178N_129V       c.[385A>G;532G>A]  p.[Met129Val;Asp178Asn]  # familiäre CJD
+CJD_E200K            c.598G>A           p.Glu200Lys              # familiäre CJD
+CJD_V210I            c.628G>A           p.Val210Ile              # familiäre CJD
+PrP_Y145Stop         c.435T>G           p.Tyr145Ter              # PrP-Amyloid-Angiopathie
+Schutz_G127V         c.380G>T           p.Gly127Val              # Kuru-Resistenz
+PRNP_E219K           c.655G>A           p.Glu219Lys              # Polymorphismus
+OPRI_1_Wiederholung  c.250_273dup                                # 5. Oktapeptid-Wiederholung PHGGGWGQ verdoppelt

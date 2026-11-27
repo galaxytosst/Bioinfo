@@ -1,0 +1,10 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NM_000558.5 = HBA1 (α)
+NM_005332.3 = HBZ (ζ, Embryo)
+NM_000518.5 = HBB (β)
+NM_000519.4 = HBD (δ)
+NM_000559.3 = HBG1 (γ, Fetus)
+NM_005330.4 = HBE1 (ε, Embryo)
+NM_005368.3 = MB (Myoglobin)
+NM_134268.5 = CYGB (Cytoglobin)
+NM_021257.4 = NGB (Neuroglobin)

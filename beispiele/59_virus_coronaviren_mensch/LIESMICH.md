@@ -1,0 +1,3 @@
+Alle sieben Coronaviren, die Menschen infizieren, plus das Fledermausvirus RaTG13. Vier verursachen Erkältungen (229E, NL63, OC43, HKU1), drei schwere Atemwegserkrankungen (SARS-CoV-1 2003, MERS-CoV 2012, SARS-CoV-2 2019). RaTG13 ist eines der nächsten bekannten Verwandten von SARS-CoV-2 (etwa 96 % gleich). Ergänzt Projekt 03. Genome von NCBI.
+
+Erwartung: Zwei Gruppen: Alphacoronaviren (229E, NL63) und Betacoronaviren (OC43, HKU1, SARS-1, SARS-2, MERS, RaTG13). SARS-CoV-2 und RaTG13 stehen direkt nebeneinander. Die Genome (27.000 bis 31.000 Basen) sind zu lang für ein Alignment, der Stammbaum nutzt die k-mer-Distanz.

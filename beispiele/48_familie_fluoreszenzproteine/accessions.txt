@@ -1,0 +1,9 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+M62653.1   = GFP (Aequorea victoria)
+AF168419.2 = DsRed drFP583 (Discosoma)
+AF168420.1 = dsFP483 (Discosoma striata)
+AF168421.1 = amFP486 (Anemonia majano)
+AF168422.1 = zFP506 (Zoanthus)
+AF168423.1 = zFP538 (Zoanthus)
+AY130757.1 = eqFP611 (Entacmaea)
+AF372525.1 = GFP (Renilla reniformis)

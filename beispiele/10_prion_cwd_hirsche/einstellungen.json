@@ -1,0 +1,9 @@
+{
+  "REFERENZ": "EU082291.1",
+  "AUSSENGRUPPE": [
+    "NM_001271626.3",
+    "NM_001009481.1"
+  ],
+  "NUR_CDS": true,
+  "MIN_IDENTITAET_VARIANTEN": 95
+}

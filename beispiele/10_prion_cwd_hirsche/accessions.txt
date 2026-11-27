@@ -1,0 +1,9 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+EU082291.1     = Wapiti 132MM PRNP
+EU082286.1     = Wapiti 132LL PRNP
+PV651793.1     = Rothirsch PRNP
+XM_020883647.2 = Weißwedelhirsch PRNP
+PZ139637.1     = Maultierhirsch PRNP
+MW557845.1     = Rentier PRNP
+NM_001271626.3 = Rind PRNP
+NM_001009481.1 = Schaf PRNP

@@ -1,0 +1,14 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NM_005259.3    = Mensch MSTN
+NM_001079919.1 = Schimpanse MSTN
+NM_001080119.1 = Rhesusaffe MSTN
+NM_010834.3    = Hausmaus MSTN
+NM_019151.2    = Ratte MSTN
+NM_001001525.4 = Rind MSTN
+NM_001009428.3 = Schaf MSTN
+NM_214435.2    = Schwein MSTN
+NM_001002959.1 = Hund MSTN
+NM_001081817.1 = Pferd MSTN
+NM_001001461.2 = Huhn MSTN
+XM_002931522.5 = Krallenfrosch MSTN
+NM_131019.5    = Zebrafisch MSTN

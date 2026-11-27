@@ -1,0 +1,8 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NM_001180479.3 = Hefe SUP35
+NM_001183067.1 = Hefe URE2
+NM_001178673.1 = Hefe RNQ1
+NM_001184040.1 = Hefe NEW1
+NM_001183830.2 = Hefe SWI1
+NM_001178460.3 = Hefe CYC8
+NM_001182568.1 = Hefe MOT3

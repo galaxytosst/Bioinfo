@@ -1,0 +1,6 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NC_001489.1 = Hepatitis-A-Virus
+NC_003977.2 = Hepatitis-B-Virus
+NC_004102.1 = Hepatitis-C-Virus 1
+NC_001653.2 = Hepatitis-D-Virus
+NC_001434.1 = Hepatitis-E-Virus

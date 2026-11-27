@@ -1,0 +1,3 @@
+Mitochondrien-DNA (mtDNA) wird nur über die Mutter vererbt und mutiert schneller als die DNA im Zellkern. Hier die vollständige mtDNA des Menschen (revidierte Cambridge-Referenzsequenz), des Neandertalers (2008), des Denisova-Menschen (aus einem Fingerknochen aus der Denisova-Höhle im Altai, 2010), von Schimpanse, Bonobo, Gorilla, Orang-Utan und Weißhandgibbon. Alle von NCBI RefSeq.
+
+Erwartung: Mensch, Neandertaler und Denisova stehen zusammen; überraschend war 2010, dass die Denisova-mtDNA außerhalb von Mensch plus Neandertaler steht. Dann folgen Schimpanse und Bonobo, Gorilla, Orang-Utan, Gibbon. Die ORF-Suche findet die 13 Protein-Gene nur teilweise, weil Mitochondrien einen eigenen genetischen Code haben (AGA/AGG sind Stopp, TGA ist Tryptophan).

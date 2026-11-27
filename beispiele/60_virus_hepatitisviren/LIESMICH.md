@@ -1,0 +1,3 @@
+„Hepatitis-Viren“ heißen so, weil sie alle die Leber befallen. Verwandt sind sie nicht: Hepatitis A (Picornavirus, RNA), B (Hepadnavirus, DNA, nur 3.200 Basen, mit überlappenden Genen), C (Flavivirus, RNA), D (ein „Satellit“ mit nur etwa 1.700 Basen, braucht Hepatitis B als Helfer) und E (Hepevirus, RNA). Referenzgenome von NCBI RefSeq.
+
+Erwartung: Fünf Viren aus fünf verschiedenen Familien: sehr unterschiedliche Genomgrößen, GC-Gehalte und ORFs. Der Stammbaum zeigt keine sinnvolle Verwandtschaft, gerade das ist hier die Lektion: gleicher Name, gleiches Organ, aber verschiedene Herkunft (wie bei Projekt 12).

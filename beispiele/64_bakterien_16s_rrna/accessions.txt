@@ -1,0 +1,15 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NR_114042.1 = Escherichia coli
+NR_074910.1 = Salmonella Typhimurium
+NR_117894.1 = Vibrio cholerae
+NR_117678.1 = Pseudomonas aeruginosa
+NR_044761.1 = Helicobacter pylori
+NR_102783.2 = Bacillus subtilis
+NR_037007.2 = Staphylococcus aureus
+NR_115239.1 = Streptococcus pneumoniae
+NR_117062.1 = Lactobacillus acidophilus
+NR_112172.1 = Clostridioides difficile
+NR_044826.2 = Mycobacterium tuberculosis
+NR_025900.1 = Thermus aquaticus
+NR_074233.1 = Methanocaldococcus jannaschii (Archaee)
+NR_113428.1 = Halobacterium salinarum (Archaee)

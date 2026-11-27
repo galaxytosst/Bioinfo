@@ -1,0 +1,13 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NM_001258462.3 = Mensch PAX6
+XM_016920618.4 = Schimpanse PAX6
+NM_001266257.1 = Rhesusaffe PAX6
+NM_001244198.2 = Hausmaus PAX6
+NM_013001.2    = Ratte PAX6
+NM_001040645.1 = Rind PAX6
+NM_001244172.1 = Schwein PAX6
+NM_001097544.1 = Hund PAX6
+NM_205066.2    = Huhn PAX6
+NM_001006762.1 = Krallenfrosch PAX6
+NM_131304.1    = Zebrafisch PAX6
+NM_001014693.2 = Taufliege PAX6

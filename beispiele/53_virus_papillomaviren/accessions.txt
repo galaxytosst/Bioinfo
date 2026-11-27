@@ -1,0 +1,7 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NC_001526.4 = HPV16 (Hochrisiko)
+NC_001527.1 = HPV31 (Hochrisiko)
+NC_001528.1 = HPV33 (Hochrisiko)
+NC_001357.1 = HPV18 (Hochrisiko)
+NC_001355.1 = HPV6b (Niedrigrisiko)
+NC_001525.1 = HPV11 (Niedrigrisiko)

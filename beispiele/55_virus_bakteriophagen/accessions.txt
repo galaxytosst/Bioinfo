@@ -1,0 +1,8 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NC_001416.1 = Phage Lambda
+NC_000866.4 = Phage T4
+NC_001604.1 = Phage T7
+NC_005856.1 = Phage P1
+NC_001422.1 = Phage phiX174
+NC_003287.2 = Phage M13
+NC_001417.2 = Phage MS2 (RNA)

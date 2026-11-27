@@ -1,0 +1,3 @@
+MTHFR stellt die aktive Form der Folsäure her. Die Variante c.665C>T (klassisch C677T, Protein A222V) macht das Enzym wärmeempfindlicher und weniger aktiv; Träger von zwei Allelen haben oft etwas höheres Homocystein im Blut. Ihr Krankheitswert wird heute als gering eingeschätzt; sie ist ein gutes Beispiel für einen häufigen Polymorphismus mit kleiner Wirkung. Zweite Variante: c.1286A>C (klassisch A1298C, E429A). Referenz ist die echte mRNA (NCBI NM_005957.5).
+
+Erwartung: Zwei Missense-Mutationen. Die alten Namen (677, 1298) zählen in einer anderen Referenzsequenz, deshalb weichen die Zahlen ab.

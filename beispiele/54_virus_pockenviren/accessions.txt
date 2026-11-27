@@ -1,0 +1,6 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NC_001611.1 = Variola (Pocken)
+NC_006998.1 = Vaccinia (Impfvirus)
+NC_063383.1 = Mpox
+NC_003663.2 = Kuhpocken
+NC_004105.1 = Ectromelia (Mäusepocken)

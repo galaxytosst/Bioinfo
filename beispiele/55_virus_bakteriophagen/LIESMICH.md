@@ -1,0 +1,3 @@
+Bakteriophagen sind Viren, die Bakterien befallen. Mit ihnen wurde die Molekularbiologie aufgebaut: Phage λ (Lambda, 48.502 Basen, Modell für Genregulation), T4 (169.000 Basen), T7 (40.000 Basen), P1, der kleine Phage φX174 (5.386 Basen, 1977 das erste vollständig sequenzierte DNA-Genom, Sanger), M13 (Einzelstrang-DNA, Klonierungsvektor) und der RNA-Phage MS2 (1976 das erste vollständig sequenzierte Genom überhaupt, Fiers). Referenzgenome von NCBI RefSeq.
+
+Erwartung: Sehr unterschiedliche Genomgrößen und GC-Gehalte. Bei φX174 überlappen sich Gene in verschiedenen Leserastern (Gen E liegt in Gen D): Der ORF-Finder zeigt das. Die Phagen sind kaum verwandt, der Stammbaum ist hier nur eine grobe Ähnlichkeitskarte.

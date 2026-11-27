@@ -1,0 +1,9 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NC_012920.1 = Mensch (rCRS)
+NC_011137.1 = Neandertaler
+NC_013993.1 = Denisova-Mensch
+NC_001643.1 = Schimpanse
+NC_001644.1 = Bonobo
+NC_011120.1 = Gorilla
+NC_002083.1 = Orang-Utan
+NC_002082.1 = Weißhandgibbon

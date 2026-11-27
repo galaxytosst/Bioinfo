@@ -1,0 +1,7 @@
+# Mutations-Rezept: Jede Zeile baut eine bekannte Mutation (HGVS-Schreibweise) in die Basis ein.
+# Spalten: Name  c.-Mutation  erwartete Proteinänderung (wird geprüft)  # Kommentar
+BASIS: NM_000277.3
+PKU_R408W  c.1222C>T  p.Arg408Trp
+PKU_R261Q  c.782G>A   p.Arg261Gln
+PKU_P281L  c.842C>T   p.Pro281Leu
+PKU_Y414C  c.1241A>G  p.Tyr414Cys

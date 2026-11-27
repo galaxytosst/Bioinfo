@@ -1,0 +1,3 @@
+Myoglobin speichert Sauerstoff im Muskel. Das Pottwal-Myoglobin war 1958 die erste Proteinstruktur, die überhaupt aufgeklärt wurde (John Kendrew, Nobelpreis 1962). Tauchende Säugetiere wie Pottwal und Seehund haben sehr viel Myoglobin im Muskel; es ist dort an der Oberfläche positiver geladen, was das Verklumpen bei hoher Konzentration verhindern soll (Mirceta et al. 2013). Hier 13 Arten (NCBI RefSeq).
+
+Erwartung: Im Protein-Vergleich sind die Häm-bindenden Histidine (proximal und distal) in allen Arten erhalten. In den Protein-Eigenschaften lohnt der Blick auf die Ladung bei pH 7,4: Pottwal und Seehund im Vergleich zu Landtieren. Die 3D-Struktur wird automatisch gesucht (es gibt viele Pottwal-Myoglobin-Strukturen).

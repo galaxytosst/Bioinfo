@@ -1,0 +1,3 @@
+CCR5 ist ein Rezeptor auf Immunzellen, den viele HIV-Stämme zum Eindringen brauchen. Die Variante CCR5-Δ32 hat eine Lücke von 32 Basen, das Leseraster verschiebt sich, und der Rezeptor erreicht die Zelloberfläche nicht. Menschen mit zwei Δ32-Allelen sind gegen diese HIV-Stämme weitgehend geschützt. Die „Berliner Patient“ und weitere Patienten wurden durch Stammzellen eines Δ32/Δ32-Spenders von HIV geheilt. In Nordeuropa tragen etwa 10 % ein Δ32-Allel. Referenz ist die echte mRNA (NCBI NM_000579.4), die Deletion wird nach varianten.txt eingebaut.
+
+Erwartung: Ein Frameshift ab Codon 185, das Protein endet nach 215 statt 352 Aminosäuren.

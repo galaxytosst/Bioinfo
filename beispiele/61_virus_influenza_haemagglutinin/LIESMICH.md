@@ -1,0 +1,3 @@
+Das Hämagglutinin (HA) sitzt auf der Oberfläche von Grippeviren und bindet an die Zellen. Danach werden Influenza-A-Viren benannt (H1 bis H18). Hier das HA-Segment von Referenzstämmen: H1N1 PR8 (1934, Laborstamm), H1N1 „Schweinegrippe“ (2009), H3N2 (2004), Vogelgrippe H5N1 (Gans, Guangdong 1996), H7N9 (Shanghai 2013), H9N2 (Hongkong 1999) und als Außengruppe Influenza B (B/Lee/1940). Alle von NCBI RefSeq.
+
+Erwartung: Die HA-Subtypen sind sich nur zu etwa 40 bis 60 % gleich (Protein). Die beiden H1 stehen zusammen; H1, H5 und H9 gehören zur HA-Gruppe 1, H3 und H7 zur Gruppe 2. Influenza B steht außen.

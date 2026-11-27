@@ -1,0 +1,6 @@
+# Mutations-Rezept: Jede Zeile baut eine bekannte Mutation (HGVS-Schreibweise) in die Basis ein.
+# Spalten: Name  c.-Mutation  erwartete Proteinänderung (wird geprüft)  # Kommentar
+BASIS: NM_007294.4
+BRCA1_185delAG  c.68_69delAG  p.Glu23ValfsTer17    # Frameshift
+BRCA1_5382insC  c.5266dupC    p.Gln1756ProfsTer74  # Frameshift
+BRCA1_C61G      c.181T>G      p.Cys61Gly           # RING-Finger

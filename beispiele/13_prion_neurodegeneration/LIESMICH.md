@@ -1,0 +1,3 @@
+Prion-ähnliche Proteine bei Nervenkrankheiten. Bei Parkinson (α-Synuclein, SNCA), Alzheimer (Tau, MAPT, und Amyloid-β aus APP), ALS und frontotemporaler Demenz (TDP-43, TARDBP; FUS; SOD1) lagern sich falsch gefaltete Proteine ab. In Zell- und Tierversuchen können solche Aggregate weitere Proteine zur Fehlfaltung bringen und sich ausbreiten, ähnlich wie Prionen. Anders als bei echten Prionkrankheiten gibt es für eine Ansteckung von Mensch zu Mensch keine gesicherten Belege. Zum Vergleich ist PRNP dabei. Alle Gene vom Menschen, NCBI RefSeq.
+
+Erwartung: Die Proteine sind nicht miteinander verwandt. Die Protein-Eigenschaften unterscheiden sich stark: α-Synuclein ist klein (140 AS) und sauer, Tau sehr hydrophil (negativer GRAVY), FUS und TDP-43 haben glycinreiche Abschnitte.

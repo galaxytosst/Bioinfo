@@ -1,0 +1,7 @@
+{
+  "ORF_MIN_AMINOSAEUREN": 100,
+  "SCHRITTE": "ORFs, Stammbaum",
+  "AUSSENGRUPPE": [
+    "NC_005353.1"
+  ]
+}

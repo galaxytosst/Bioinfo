@@ -1,0 +1,5 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NC_001802.1 = HIV-1
+AF447763.1  = SIVcpz TAN1 (Schimpanse)
+NC_001722.1 = HIV-2
+M33262.1    = SIVmac239 (Rhesusaffe)

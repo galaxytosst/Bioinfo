@@ -1,0 +1,13 @@
+# NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
+NM_003140.3    = Mensch SRY
+NM_001008988.1 = Schimpanse SRY
+XM_055377235.2 = Gorilla SRY
+NM_001032836.2 = Rhesusaffe SRY
+NM_011564.1    = Hausmaus SRY
+NM_001416740.1 = Ratte SRY
+NM_001014385.1 = Rind SRY
+XM_060408513.1 = Schaf SRY
+XM_018044472.1 = Ziege SRY
+NM_214452.3    = Schwein SRY
+XM_038451412.1 = Hund SRY
+NM_001419694.1 = Pferd SRY

@@ -1,0 +1,3 @@
+Wale stammen von Landsäugetieren ab. Ihr nächster lebender Verwandter ist das Flusspferd (zusammen „Whippomorpha“). Das zeigten DNA-Daten in den 1990ern, später bestätigt durch Fossilien von Ur-Walen mit Paarhufer-Knöcheln. Hier Blauwal, Pottwal, Großer Tümmler, Flusspferd, Rind und Schwein (Paarhufer) und das Pferd (Unpaarhufer) als Außengruppe. Vollständige mtDNA von NCBI RefSeq.
+
+Erwartung: Wale und Flusspferd stehen zusammen, Rind und Schwein außerhalb, das Pferd ganz außen. Bei mtDNA-Stammbäumen tiefer Verzweigungen (vor über 50 Millionen Jahren) ist die k-mer-Distanz unsicher; das Ergebnis kann daher vom Lehrbuch abweichen.

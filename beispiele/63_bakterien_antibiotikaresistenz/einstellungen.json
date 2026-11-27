@@ -1,0 +1,9 @@
+{
+  "ORF_MIN_AMINOSAEUREN": 200,
+  "STARTCODONS": [
+    "ATG",
+    "GTG",
+    "TTG"
+  ],
+  "SCHRITTE": "ORFs, Protein-Vergleich"
+}

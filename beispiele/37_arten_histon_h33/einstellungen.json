@@ -1,0 +1,10 @@
+{
+  "NUR_CDS": true,
+  "ORF_MIN_AMINOSAEUREN": 50,
+  "REFERENZ": "NM_002107.7",
+  "AUSSENGRUPPE": [
+    "NM_001273153.1"
+  ],
+  "MIN_IDENTITAET_VARIANTEN": 70,
+  "SCHRITTE": "alles"
+}

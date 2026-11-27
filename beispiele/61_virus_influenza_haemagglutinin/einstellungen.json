@@ -1,0 +1,7 @@
+{
+  "ORF_MIN_AMINOSAEUREN": 100,
+  "NUR_CDS": true,
+  "AUSSENGRUPPE": [
+    "NC_002207.1"
+  ]
+}
