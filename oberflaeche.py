@@ -403,6 +403,143 @@ def mutation_html(art="snv", position=20, neue_base="T", anzahl=1, einfuegen="A"
     return _kasten("".join(teile))
 
 
+# ----------------------------------------------------------------------
+# Zwei Proteine vergleichen (BLOSUM62)
+# ----------------------------------------------------------------------
+
+MAX_ZELLEN_PROTEIN = 25_000_000                       # Länge1 × Länge2 in Aminosäuren
+_AS_BUCHSTABEN = set("ACDEFGHIKLMNPQRSTVWYBZX")
+
+
+def _lese_protein(text, min_as=30):
+    """Liest ein Protein aus einem Textfeld. DNA/mRNA wird erkannt und das Gen (längster ORF ab ATG)
+    übersetzt. Gibt (name, protein, quelle, hinweise) zurück."""
+    text = text.strip()
+    if not text:
+        raise ValueError("Das Feld ist leer. Füge eine Sequenz ein oder wähle ein Beispiel.")
+    name, hinweise = "Eingabe", []
+    if text.startswith(">") and "\n" not in text:
+        # einzeiliges Feld: Kopfzeile und Sequenz in einer Zeile. Von hinten alle Wörter aus
+        # Großbuchstaben oder Zahlen nehmen, die gehören zur Sequenz.
+        woerter = text.split()
+        k = len(woerter)
+        while k > 1 and re.fullmatch(r"[A-Z*\-]+|\d+", woerter[k - 1]):
+            k -= 1
+        text = " ".join(woerter[:k]) + "\n" + " ".join(woerter[k:])
+    if text.startswith(">"):
+        eintraege = [t for t in text.split(">") if t.strip()]
+        kopf, _, rumpf = eintraege[0].partition("\n")
+        kopf = kopf.strip()
+        if re.match(r"^[A-Z]{1,2}_?\d+(\.\d+)?\s", kopf + " "):
+            name = wz.beschriftung(kopf)
+        elif kopf:
+            name = kopf[:70]
+        text = rumpf
+        if len(eintraege) > 1:
+            hinweise.append(f"{len(eintraege)} FASTA-Einträge gefunden, verwendet wird der erste.")
+    seq = re.sub(r"[^A-Za-z*]", "", text).upper()
+    if not seq:
+        raise ValueError("Keine Sequenz gefunden.")
+    if not wz.ist_protein(seq):
+        dna = seq.replace("U", "T")
+        protein, cds = wz.protein_aus_dna(dna, min_as=min_as)
+        if not protein:
+            raise ValueError(f"„{name}“ ist DNA/RNA, aber darin steht kein Gen (ORF ab ATG mit mindestens "
+                             f"{min_as} Aminosäuren auf dem angegebenen Strang). Füge die mRNA/CDS ein "
+                             f"oder direkt die Proteinsequenz.")
+        quelle = f"übersetzt aus DNA, Gen an Position {cds[0]}–{cds[1]}"
+        return name, protein.rstrip("*"), quelle, hinweise
+    protein = seq.rstrip("*")
+    fremd = sorted(set(protein) - _AS_BUCHSTABEN - {"*"})
+    if fremd:
+        if len([c for c in protein if c in fremd]) > 0.05 * len(protein):
+            raise ValueError(f"Unbekannte Zeichen in „{name}“: {' '.join(fremd)}. "
+                             f"Erlaubt sind die 20 Aminosäure-Buchstaben (und B, Z, X).")
+        hinweise.append(f"Ungewöhnliche Zeichen ({' '.join(fremd)}) in „{name}“ wurden als X gelesen.")
+        protein = "".join("X" if c in fremd else c for c in protein)
+    if "*" in protein:
+        hinweise.append(f"„{name}“ enthält ein Stoppzeichen (*) mitten in der Sequenz.")
+    return name, protein, "Proteinsequenz (eingegeben)", hinweise
+
+
+def protein_vergleich_html(text1, text2, modus="global"):
+    """Zwei Proteine mit BLOSUM62 alignieren (wie BLASTP): Identität, Ähnlichkeit, jede Änderung mit
+    chemischer Bewertung. Eingabe als Protein oder als DNA/mRNA (dann wird das Gen übersetzt)."""
+    from bericht import DREI
+    n1, p1, q1, h1 = _lese_protein(text1)
+    n2, p2, q2, h2 = _lese_protein(text2)
+    if n1 == n2:
+        n1, n2 = n1 + " (1)", n2 + " (2)"
+    if len(p1) * len(p2) > MAX_ZELLEN_PROTEIN:
+        raise ValueError(f"Zu lang ({len(p1):,} × {len(p2):,} Aminosäuren). Nimm kürzere Proteine.")
+    erg = wz.ausrichten_protein(p1, p2, modus)
+    st = wz.protein_statistik(erg["a1"], erg["a2"])
+    teile = [_hinweis(_e(h), "warnung") for h in h1 + h2]
+    teile.append(f"<h3 style='margin:4px 0'>{_e(n1)} ↔ {_e(n2)}</h3>")
+    teile.append(_tabelle(["", "Name", "Länge (AS)", "Herkunft"],
+                          [["1 (Referenz)", _e(n1), len(p1), _e(q1)], ["2", _e(n2), len(p2), _e(q2)]],
+                          rechts=(2,)))
+    teile.append(_tabelle(
+        ["Modus", "Score", "Identität", "Ähnlichkeit", "Lücken (Spalten)"],
+        [[modus, int(erg["score"]), f"{st['identitaet']:.1f} %", f"{st['aehnlichkeit']:.1f} %", st["luecken"]]],
+        rechts=(1, 2, 3, 4)))
+    teile.append("<div><small>Bewertung wie NCBI BLASTP: BLOSUM62, Lücke öffnen 11, verlängern 1. "
+                 "<b>Identität</b> = gleiche Aminosäure. <b>Ähnlichkeit</b> = gleiche oder chemisch ähnliche "
+                 "Aminosäure (BLOSUM62 &gt; 0). Werte beziehen sich auf den überlappenden Bereich.</small></div>")
+    if st["identitaet"] < 25 and st["laenge"] > 50:
+        teile.append(_hinweis("Unter etwa 25 % Identität ist unsicher, ob die Proteine überhaupt verwandt sind "
+                              "(„Twilight Zone“). Das Alignment kann dann zufällig sein.", "warnung"))
+    if modus == "global" and min(len(p1), len(p2)) < 0.5 * max(len(p1), len(p2)):
+        teile.append(_hinweis("Die Proteine sind sehr unterschiedlich lang. Für eine Domäne in einem großen "
+                              "Protein ist <b>lokal</b> besser.", "warnung"))
+    if modus == "lokal":
+        teile.append(f"Bester gemeinsamer Abschnitt: Protein 1 ab Aminosäure {erg['start1']}, "
+                     f"Protein 2 ab Aminosäure {erg['start2']}.")
+
+    unterschiede = wz.protein_unterschiede(erg["a1"], erg["a2"])
+    versatz = erg.get("start1", 1) - 1                 # lokal: Positionen in Protein 1 zählen ab dessen Anfang
+    if not unterschiede:
+        teile.append(_hinweis("Im verglichenen Bereich sind die Proteine identisch.", "ok"))
+    else:
+        zaehl = {}
+        for d in unterschiede:
+            schluessel = d["art"] if d["art"] != "Austausch" else (
+                "Austausch, ähnlich" if d["punkte"] > 0 else "Austausch, unähnlich")
+            zaehl[schluessel] = zaehl.get(schluessel, 0) + 1
+        teile.append("<p><b>" + str(len(unterschiede)) + " Unterschied(e):</b> " +
+                     " · ".join(f"{k}: {n}" for k, n in zaehl.items()) + "</p>")
+        zeilen = []
+        for d in unterschiede[:200]:
+            pos, ende = d["position"] + versatz, d["ende"] + versatz
+            if d["art"] == "Austausch":
+                text = f"{DREI.get(d['ref'], d['ref'])}{pos}{DREI.get(d['alt'], d['alt'])}"
+                farbe = "#009E73" if d["punkte"] > 0 else "#D55E00"
+                punkte = f'<span style="color:{farbe};font-weight:600">{d["punkte"]:+d}</span>'
+            elif d["art"] == "Insertion":
+                text, punkte = f"+{d['alt']} (nach {pos})", ""
+            else:
+                text = f"−{d['ref']} ({pos if pos == ende else f'{pos}–{ende}'})"
+                punkte = ""
+            zeilen.append([d["art"], f'<code>{_e(text)}</code>', punkte, _e(d["bewertung"])])
+        teile.append(_tabelle(["Art", "Änderung (Position in Protein 1)", "BLOSUM62", "Bewertung"], zeilen,
+                              rechts=(2,)))
+        if len(unterschiede) > 200:
+            teile.append(f"<small>… und {len(unterschiede) - 200} weitere (im Alignment unten).</small>")
+        teile.append("<div><small>Gruppen (vereinfacht): unpolar G A V L I M F W P · polar S T C Y N Q · "
+                     "basisch (+) K R H · sauer (−) D E. Positiver BLOSUM62-Wert = Austausch kommt in echten "
+                     "Proteinfamilien oft vor (meist harmlos), negativ = selten (eher störend).</small></div>")
+    text = wz.protein_alignment_text(erg)
+    zeilen_txt = text.split("\n")
+    if len(zeilen_txt) > 120:
+        text = "\n".join(zeilen_txt[:120]) + "\n… gekürzt, vollständig im Download"
+    teile.append("<b>Alignment</b> (| gleich, + ähnlich, Leerzeichen = verschieden oder Lücke)" + _pre(text))
+    teile.append("<div>" + _text_download(wz.protein_alignment_text(erg), "protein_alignment.txt",
+                                          "Alignment (Text)") + " " +
+                 _text_download(_als_fasta(n1, p1) + _als_fasta(n2, p2), "proteine.fasta",
+                                "beide Proteine (FASTA)") + "</div>")
+    return _kasten("".join(teile))
+
+
 BEISPIEL_SEQUENZEN = {
     "kurzes Testgen": ("kurz", None),
     "HBB-mRNA des Menschen": ("01_sichelzellanaemie/1_HbA_normal_NM_000518.5.fasta", None),
@@ -410,6 +547,7 @@ BEISPIEL_SEQUENZEN = {
     "β-Thalassämie Codon 41/42": ("01_sichelzellanaemie/2_varianten.fasta", "Codon41"),
     "HBB Schimpanse": ("02_haemoglobin_arten/haemoglobin_beta_7_arten.fasta", "Pan troglodytes"),
     "HBB Maus": ("02_haemoglobin_arten/haemoglobin_beta_7_arten.fasta", "Mus musculus"),
+    "HBB Rind": ("02_haemoglobin_arten/haemoglobin_beta_7_arten.fasta", "Bos taurus"),
     "Pest-Plasmid pPCP1": ("05_pest_plasmid/pPCP1_plasmid.fasta", None),
 }
 

@@ -125,7 +125,7 @@ def orf_karte_abbildung(R, max_sequenzen=8):
     return fig
 
 
-def identitaet_heatmap(R):
+def identitaet_heatmap(R, titel="Paarweise Identität aus dem Alignment (%)", wert="identitaet"):
     namen = R["namen"]
     paare = R.get("paare") or []
     if len(namen) < 2 or not paare:
@@ -136,7 +136,7 @@ def identitaet_heatmap(R):
     for i in range(len(namen)):
         M[i, i] = 100
     for p in paare:
-        M[index[p["a"]], index[p["b"]]] = M[index[p["b"]], index[p["a"]]] = p["identitaet"]
+        M[index[p["a"]], index[p["b"]]] = M[index[p["b"]], index[p["a"]]] = p[wert]
     n = len(namen)
     groesse = min(9.0, 2.2 + 0.45 * n)
     fig = Figure(figsize=(groesse + 4.2, groesse))
@@ -163,8 +163,41 @@ def identitaet_heatmap(R):
                     text = f"{min(v, 99.4):.0f}"      # nie auf "100" runden, wenn es nicht 100 ist
                 ax.text(j, i, text, ha="center", va="center", fontsize=7 if n <= 9 else 6.5,
                         color="white" if v < (vmin + 100) / 2 else "black")
-    fig.colorbar(bild, ax=ax, shrink=0.7, label="Identität (%)")
-    ax.set_title("Paarweise Identität aus dem Alignment (%)", fontsize=10)
+    fig.colorbar(bild, ax=ax, shrink=0.7, label="Prozent")
+    ax.set_title(titel, fontsize=10)
+    fig.tight_layout()
+    return fig
+
+
+def protein_unterschiede_abbildung(P):
+    """Wo im Protein liegen die Unterschiede zur Referenz? Ein Strich pro Unterschied."""
+    vergleiche = [v for v in P.get("vergleiche", []) if v["unterschiede"]][:15]
+    if not vergleiche:
+        return None
+    ref_laenge = next((len(e["protein"]) for e in P["proteine"] if e["name"] == P["referenz"]), None)
+    fig = Figure(figsize=(11, 0.45 * len(vergleiche) + 1.4))
+    ax = fig.subplots()
+    arten = [("Austausch, ähnlich (BLOSUM62 > 0)", "#009E73"), ("Austausch, unähnlich (≤ 0)", "#D55E00"),
+             ("Lücke (Insertion/Deletion)", "#7A7A7A")]
+    gezeigt = set()
+    for zeile, v in enumerate(vergleiche):
+        y = len(vergleiche) - 1 - zeile
+        for d in v["unterschiede"]:
+            if d["art"] == "Austausch":
+                label, farbe = arten[0] if d["punkte"] > 0 else arten[1]
+            else:
+                label, farbe = arten[2]
+            ax.plot([d["position"], d["position"]], [y - 0.32, y + 0.32], color=farbe, lw=2.2,
+                    label=None if label in gezeigt else label)
+            gezeigt.add(label)
+    ax.set_yticks(range(len(vergleiche)))
+    ax.set_yticklabels([v["name"][:45] for v in vergleiche][::-1], fontsize=9)
+    if ref_laenge:
+        ax.set_xlim(0, ref_laenge + 1)
+    ax.set_xlabel(f"Position im Referenzprotein ({P['referenz'][:50]})", fontsize=9)
+    ax.set_ylim(-0.7, len(vergleiche) - 0.3)
+    ax.legend(fontsize=8, ncol=3, loc="lower center", bbox_to_anchor=(0.5, 1.0), frameon=False)
+    _achsen_stil(ax)
     fig.tight_layout()
     return fig
 
@@ -310,12 +343,27 @@ def _projekt_html(R, nr):
     for w in R.get("warnungen", []):
         h.append(f'<div class="warnung">⚠️ {_e(w)}</div>')
     seqs = R["sequenzen"]
+    S = set(R.get("schritte") or ("orfs", "alignment", "varianten", "protein", "stammbaum"))
+    if len(S) < 5:
+        from analyse import SCHRITT_NAMEN
+        h.append(f'<p class="leise">Gewählte Analyse: Übersicht + '
+                 f'{", ".join(SCHRITT_NAMEN[s] for s in ("orfs", "alignment", "varianten", "protein", "stammbaum") if s in S)}</p>')
     anzahl_orfs = sum(len(s.get("orfs", [])) for s in seqs)
     anzahl_var = sum(len(e["varianten"]) for e in (R.get("varianten") or {}).get("ergebnisse", []))
     h.append('<div class="kacheln">')
-    for zahl, text in [(len(seqs), "Sequenzen"), (f"{sum(s['laenge'] for s in seqs):,}", "Basen insgesamt"),
-                       (anzahl_orfs, "ORFs gefunden"), (len(R.get("paare") or []), "Alignments"),
-                       (anzahl_var, "Varianten"), ("ja" if R.get("baum") else "–", "Stammbaum")]:
+    P = R.get("protein") or {}
+    kacheln = [(len(seqs), "Sequenzen"), (f"{sum(s['laenge'] for s in seqs):,}", "Basen insgesamt")]
+    if "orfs" in S:
+        kacheln.append((anzahl_orfs, "ORFs gefunden"))
+    if "alignment" in S:
+        kacheln.append((len(R.get("paare") or []), "Alignments"))
+    if "varianten" in S:
+        kacheln.append((anzahl_var, "Varianten"))
+    if "protein" in S:
+        kacheln.append((sum(1 for e in P.get("proteine", []) if e["protein"]), "Proteine"))
+    if "stammbaum" in S:
+        kacheln.append(("ja" if R.get("baum") else "–", "Stammbaum"))
+    for zahl, text in kacheln:
         h.append(f'<div class="kachel"><div class="zahl">{_e(zahl)}</div><div class="text">{text}</div></div>')
     h.append("</div>")
 
@@ -327,7 +375,7 @@ def _projekt_html(R, nr):
                        for s in seqs], zahlspalten=(2, 3, 4, 5, 6, 7)))
     h.append(_bild(laenge_gc_abbildung(R), "Länge und GC-Gehalt"))
     E = R["einstellungen"]
-    karte = orf_karte_abbildung(R)
+    karte = orf_karte_abbildung(R) if "orfs" in S else None
     if karte:
         h.append(f'<p class="leise">ORF-Karte: jedes Kästchen ist ein offenes Leseraster ab '
                  f'{E["ORF_MIN_AMINOSAEUREN"]} Aminosäuren (Startcodon {"/".join(E["STARTCODONS"])}), '
@@ -335,7 +383,21 @@ def _projekt_html(R, nr):
         h.append(_bild(karte, "ORF-Karte"))
 
     # Alignments
-    h.append("<h3>Paarweiser Vergleich (Alignment)</h3>")
+    if "alignment" in S:
+        h.append(_alignment_html(R))
+    if "varianten" in S:
+        h.append(_varianten_html(R, E))
+    if "protein" in S:
+        h.append(_protein_html(P))
+    if "stammbaum" in S:
+        h.append(_stammbaum_html(R))
+    h.append(f'<p class="leise">Dateien zu diesem Projekt: {_e(R["ausgabe_ordner"])}/ · '
+             f'Rechenzeit {R.get("dauer", 0):.1f} s</p>')
+    return "\n".join(h)
+
+
+def _alignment_html(R):
+    h = ["<h3>Paarweiser Vergleich (Alignment)</h3>"]
     if R.get("alignment_hinweis"):
         h.append(f'<div class="box">{_e(R["alignment_hinweis"])}</div>')
     hm = identitaet_heatmap(R)
@@ -349,7 +411,11 @@ def _projekt_html(R, nr):
         h.append('<p class="leise">Unter etwa 50 % Identität mit vielen Lücken sind sich DNA-Sequenzen nicht ähnlicher '
                  'als Zufallssequenzen.</p>')
 
-    # Varianten
+    return "\n".join(h)
+
+
+def _varianten_html(R, E):
+    h = []
     V = R.get("varianten") or {}
     h.append("<h3>Variantenanalyse: Mutationen und ihre Wirkung</h3>")
     if V.get("hinweis"):
@@ -399,7 +465,11 @@ def _projekt_html(R, nr):
             h.append(f'<p class="leise">Nicht in der Variantenanalyse (unter {E["MIN_IDENTITAET_VARIANTEN"]} % '
                      f'Identität zur Referenz oder zu lang): {_e(", ".join(V["uebersprungen"]))}</p>')
 
-    # Stammbaum
+    return "\n".join(h)
+
+
+def _stammbaum_html(R):
+    h = []
     T = R.get("baum")
     h.append("<h3>Stammbaum</h3>")
     if not T:
@@ -414,9 +484,65 @@ def _projekt_html(R, nr):
         from werkzeuge import newick
         h.append("<details><summary>Newick-Format (z. B. für iTOL)</summary>"
                  f'<div class="kette mono">{_e(newick(T["upgma"]))};\n\n{_e(newick(T["nj"]))};</div></details>')
-    h.append(f'<p class="leise">Dateien zu diesem Projekt: {_e(R["ausgabe_ordner"])}/ · '
-             f'Rechenzeit {R.get("dauer", 0):.1f} s</p>')
     return "\n".join(h)
+
+
+def _protein_html(P):
+    if not P:
+        return ""
+    h = ["<h3>Protein-Vergleich</h3>"]
+    h.append('<p class="leise">Aus jeder Sequenz wird das Gen (längster ORF ab ATG) in ein Protein übersetzt. '
+             'Die Proteine werden mit der BLOSUM62-Matrix aligniert, wie bei BLASTP. <b>Identität</b> = gleiche '
+             'Aminosäure, <b>Ähnlichkeit</b> = gleiche oder chemisch ähnliche Aminosäure (BLOSUM62-Wert über 0).</p>')
+    vergleich = {v["name"]: v for v in P.get("vergleiche", [])}
+    zeilen = []
+    for e in P.get("proteine", []):
+        v = vergleich.get(e["name"])
+        if e["name"] == P.get("referenz"):
+            werte = ["Referenz", "", ""]
+        elif v:
+            werte = [f"{v['identitaet']:.1f}", f"{v['aehnlichkeit']:.1f}", len(v["unterschiede"])]
+        else:
+            werte = ["–", "–", "–"]
+        zeilen.append([_e(e["name"]), _e(e["quelle"]), len(e["protein"]) if e["protein"] else "–"] + werte)
+    h.append(_tabelle(["Name", "Protein aus", "Länge (AS)", "Identität %", "Ähnlichkeit %", "Unterschiede"],
+                      zeilen, zahlspalten=(2, 3, 4, 5)))
+    if P.get("hinweis"):
+        h.append(f'<div class="box">{_e(P["hinweis"])}</div>')
+    abb = protein_unterschiede_abbildung(P)
+    if abb:
+        h.append(_bild(abb, "Unterschiede entlang des Proteins"))
+    namen = [e["name"] for e in P.get("proteine", []) if e["protein"]]
+    if len(namen) >= 2 and P.get("paare"):
+        hm = identitaet_heatmap({"namen": namen, "paare": P["paare"]}, "Protein: paarweise Identität (%)")
+        h.append(_bild(hm, "Protein-Identität"))
+    for v in P.get("vergleiche", []):
+        if not v["unterschiede"]:
+            continue
+        zeilen = []
+        for d in v["unterschiede"][:150]:
+            if d["art"] == "Austausch":
+                text = f"{DREI.get(d['ref'], d['ref'])}{d['position']}{DREI.get(d['alt'], d['alt'])}"
+                punkte = d["punkte"]
+                farbe = "#009E73" if punkte > 0 else "#D55E00"
+                punkte = f'<span style="color:{farbe};font-weight:600">{punkte:+d}</span>'
+            else:
+                if d["art"] == "Insertion":
+                    text = f"+{d['alt']} (nach Pos. {d['position']})"
+                else:
+                    pos = d["position"] if d["position"] == d["ende"] else f"{d['position']}–{d['ende']}"
+                    text = f"−{d['ref']} (Pos. {pos})"
+                punkte = ""
+            zeilen.append([d["art"], f'<span class="mono">{_e(text)}</span>', punkte, _e(d["bewertung"])])
+        offen = " open" if len(v["unterschiede"]) <= 10 else ""
+        h.append(f"<details{offen}><summary>Unterschiede: {_e(v['name'])} ({len(v['unterschiede'])})</summary>"
+                 + _tabelle(["Art", "Änderung", "BLOSUM62", "Bewertung"], zeilen) + "</details>")
+    return "\n".join(h)
+
+
+DREI = {"A": "Ala", "R": "Arg", "N": "Asn", "D": "Asp", "C": "Cys", "Q": "Gln", "E": "Glu", "G": "Gly", "H": "His",
+        "I": "Ile", "L": "Leu", "K": "Lys", "M": "Met", "F": "Phe", "P": "Pro", "S": "Ser", "T": "Thr", "W": "Trp",
+        "Y": "Tyr", "V": "Val", "*": "Ter", "X": "Xaa"}
 
 
 def erstelle_html_bericht(ergebnisse, pfad):
@@ -430,18 +556,20 @@ def erstelle_html_bericht(ergebnisse, pfad):
     if len(ergebnisse) > 1:
         zeilen = []
         for i, R in enumerate(ergebnisse, 1):
-            V = R.get("varianten") or {}
+            V = R.get("varianten")
+            P = R.get("protein")
             if not R.get("sequenzen"):
-                zeilen.append([f'<a href="#p{i}">{i}. {_e(R["titel"])}</a>', 0, "–", "–", "–", "–"])
+                zeilen.append([f'<a href="#p{i}">{i}. {_e(R["titel"])}</a>', 0, "–", "–", "–", "–", "–"])
                 continue
             zeilen.append([f'<a href="#p{i}">{i}. {_e(R["titel"])}</a>', len(R["sequenzen"]),
                            f"{sum(s['laenge'] for s in R['sequenzen']):,}",
                            sum(len(s.get("orfs", [])) for s in R["sequenzen"]),
-                           sum(len(e["varianten"]) for e in V.get("ergebnisse", [])),
+                           sum(len(e["varianten"]) for e in V.get("ergebnisse", [])) if V else "–",
+                           sum(1 for e in P.get("proteine", []) if e["protein"]) if P else "–",
                            "ja" if R.get("baum") else "–"])
         teile.append("<h3>Übersicht aller Projekte</h3>")
-        teile.append(_tabelle(["Projekt", "Sequenzen", "Basen", "ORFs", "Varianten", "Stammbaum"], zeilen,
-                              zahlspalten=(1, 2, 3, 4)))
+        teile.append(_tabelle(["Projekt", "Sequenzen", "Basen", "ORFs", "Varianten", "Proteine", "Stammbaum"],
+                              zeilen, zahlspalten=(1, 2, 3, 4, 5)))
     for i, R in enumerate(ergebnisse, 1):
         teile.append(_projekt_html(R, i))
     teile.append("""
@@ -451,6 +579,7 @@ def erstelle_html_bericht(ergebnisse, pfad):
 <p><b>Identität</b>: Anteil gleicher Basen im Alignment. <b>Lücken</b> stehen für Insertionen oder Deletionen.</p>
 <p><b>c.</b>-Position: Position im Gen, c.1 ist das A des Startcodons ATG. <b>p.</b>: Änderung im Protein, z. B. p.Glu7Val = Glutamat an Position 7 wird zu Valin (HGVS-Schreibweise).</p>
 <p><b>stumm</b>: gleiche Aminosäure · <b>Missense</b>: andere Aminosäure · <b>Nonsense</b>: vorzeitiges Stoppcodon · <b>Frameshift</b>: Insertion/Deletion, die das Leseraster verschiebt · <b>In-frame</b>: Insertion/Deletion von ganzen Codons.</p>
+<p><b>Protein-Identität / Ähnlichkeit</b>: Identität zählt nur gleiche Aminosäuren. Ähnlichkeit zählt auch Austausche zwischen chemisch ähnlichen Aminosäuren (BLOSUM62 &gt; 0, z. B. Ile↔Val). <b>BLOSUM62</b>: Punktetabelle aus echten Proteinfamilien; positiv = häufiger Austausch, negativ = seltener.</p>
 <p><b>UPGMA</b> nimmt eine gleichmäßige Mutationsrate an (molekulare Uhr), <b>Neighbor-Joining</b> nicht. Ein Stammbaum ist eine Schätzung.</p>
 </div>
 </div></body></html>""")

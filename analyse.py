@@ -33,6 +33,35 @@ from werkzeuge import (lese_ordner, gc_gehalt, zusammensetzung, finde_orfs, ausr
                        newick, baum_als_text, transkribiere, uebersetze, finde_cds,
                        finde_varianten, wirkung_der_varianten, variante_auf_referenz_position,
                        vergleiche_proteine, lade_von_ncbi, normalisiere_indels)
+from werkzeuge import (protein_aus_dna, ausrichten_protein, protein_statistik, protein_unterschiede,
+                       protein_alignment_text, DREIBUCHSTABEN)
+
+ALLE_SCHRITTE = ("orfs", "alignment", "varianten", "protein", "stammbaum")
+SCHRITT_NAMEN = {"orfs": "ORF-Suche", "alignment": "DNA-Vergleich", "varianten": "Mutationen",
+                 "protein": "Protein-Vergleich", "stammbaum": "Stammbaum"}
+
+
+def schritte_aus_text(wert):
+    """Macht aus "alles", "Protein, Stammbaum" oder einer Liste die Menge der Analyseschritte."""
+    if wert is None or (isinstance(wert, str) and wert.strip().lower() in ("", "alles", "alle")):
+        return set(ALLE_SCHRITTE)
+    teile = [wert] if isinstance(wert, str) else list(wert)
+    text = " ".join(str(t) for t in teile).lower()
+    if "alles" in text:
+        return set(ALLE_SCHRITTE)
+    S = set()
+    for wort, schritt in [("orf", "orfs"), ("übersicht", "orfs"), ("uebersicht", "orfs"), ("gen", "orfs"),
+                          ("dna", "alignment"), ("alignment", "alignment"), ("vergleich", "alignment"),
+                          ("mutation", "varianten"), ("variant", "varianten"), ("protein", "protein"),
+                          ("stamm", "stammbaum"), ("baum", "stammbaum"), ("phylo", "stammbaum")]:
+        if wort in text:
+            S.add(schritt)
+    if "protein" in text and "dna" not in text and "alignment" not in text:
+        S.discard("alignment")                      # "Protein-Vergleich" meint nicht den DNA-Vergleich
+    if not S:
+        raise ValueError(f"Unbekannte Analyseart: {wert}. Möglich: alles, ORFs, DNA-Vergleich, Mutationen, "
+                         f"Protein-Vergleich, Stammbaum (mehrere mit Komma).")
+    return S
 
 STANDARD = {
     "ORF_MIN_AMINOSAEUREN": 100,          # kürzere ORFs ignorieren
@@ -46,6 +75,7 @@ STANDARD = {
     "REFERENZ": None,                     # Referenz für die Variantenanalyse (None = erste Sequenz)
     "CDS": None,                          # (start, ende) des Gens in der Referenz, ab 1; None = automatisch
     "MIN_IDENTITAET_VARIANTEN": 80,       # nur Sequenzen, die der Referenz mindestens so ähnlich sind (%)
+    "SCHRITTE": "alles",                  # oder z. B. "Protein, Stammbaum" (siehe ALLE_SCHRITTE)
     "ZEIGE_GRAFIK": True,                 # Stammbaum direkt anzeigen
     "TEXT_AUSGABE": True,                 # Textbericht ausgeben
 }
@@ -106,8 +136,9 @@ def analysiere_ordner(ordner, ausgabe_ordner="ergebnisse", html=True, **einstell
     os.makedirs(ausgabe_ordner, exist_ok=True)
     B = _Bericht(E["TEXT_AUSGABE"])
     startzeit = time.time()
+    S = schritte_aus_text(E["SCHRITTE"])
     R = {"titel": os.path.basename(os.path.normpath(ordner)), "ordner": ordner, "ausgabe_ordner": ausgabe_ordner,
-         "einstellungen": E, "beschreibung": "", "warnungen": []}
+         "einstellungen": E, "beschreibung": "", "warnungen": [], "schritte": sorted(S)}
     liesmich = os.path.join(ordner, "LIESMICH.md")
     if os.path.exists(liesmich):
         with open(liesmich) as f:
@@ -172,8 +203,11 @@ def analysiere_ordner(ordner, ausgabe_ordner="ergebnisse", html=True, **einstell
     B("→ Alle ORFs: orfs.csv, Proteinsequenzen: orf_proteine.fasta")
 
     # ------------------------------------------------------------ 3. Paarweise Alignments
-    B.titel("3. PAARWEISER VERGLEICH (globales Alignment mit affiner Lückenstrafe)")
     paare = [(namen[i], namen[j]) for i in range(len(namen)) for j in range(i + 1, len(namen))]
+    if not S & {"alignment", "varianten", "stammbaum"}:
+        paare = []                                    # nicht gewählt und nicht gebraucht
+    else:
+        B.titel("3. PAARWEISER VERGLEICH (globales Alignment mit affiner Lückenstrafe)")
     alignierbar = [p for p in paare
                    if len(sequenzen[p[0]]) <= E["MAX_ALIGN_LAENGE"] and len(sequenzen[p[1]]) <= E["MAX_ALIGN_LAENGE"]]
     zellen = sum(len(sequenzen[a]) * len(sequenzen[b]) for a, b in alignierbar)
@@ -182,8 +216,10 @@ def analysiere_ordner(ordner, ausgabe_ordner="ergebnisse", html=True, **einstell
     identitaeten = {}
     distanzen_aln = {}
 
-    if not paare:
+    if not paare and len(namen) < 2:
         R["alignment_hinweis"] = "Nur eine Sequenz, kein Vergleich möglich."
+    elif not paare:
+        pass
     elif zellen > E["MAX_ALIGN_ZELLEN_GESAMT"]:
         R["alignment_hinweis"] = (f"Übersprungen: Die Alignments wären zusammen {zellen:,} Rechenschritte "
                                   f"(Limit {E['MAX_ALIGN_ZELLEN_GESAMT']:,}).")
@@ -224,12 +260,22 @@ def analysiere_ordner(ordner, ausgabe_ordner="ergebnisse", html=True, **einstell
         B("   50 % mit vielen Lücken auch zwischen zufälligen Sequenzen üblich, also kein Hinweis auf Verwandtschaft.")
 
     # ------------------------------------------------------------ 4. Variantenanalyse
-    B.titel("4. VARIANTENANALYSE: Mutationen gegenüber einer Referenz und ihre Wirkung")
-    R["varianten"] = _variantenanalyse(sequenzen, namen, identitaeten, E, ausgabe_ordner, B)
+    R["varianten"] = None
+    if "varianten" in S:
+        B.titel("4. VARIANTENANALYSE: Mutationen gegenüber einer Referenz und ihre Wirkung")
+        R["varianten"] = _variantenanalyse(sequenzen, namen, identitaeten, E, ausgabe_ordner, B)
 
-    # ------------------------------------------------------------ 5. Stammbaum
-    B.titel("5. STAMMBAUM")
-    R["baum"] = _stammbaum(sequenzen, namen, paare, distanzen_aln, E, ausgabe_ordner, B)
+    # ------------------------------------------------------------ 5. Protein-Vergleich
+    R["protein"] = None
+    if "protein" in S:
+        B.titel("5. PROTEIN-VERGLEICH (Translation, Alignment mit BLOSUM62)")
+        R["protein"] = _proteinvergleich(sequenzen, namen, E, ausgabe_ordner, B)
+
+    # ------------------------------------------------------------ 6. Stammbaum
+    R["baum"] = None
+    if "stammbaum" in S:
+        B.titel("6. STAMMBAUM")
+        R["baum"] = _stammbaum(sequenzen, namen, paare, distanzen_aln, E, ausgabe_ordner, B)
 
     R["dauer"] = time.time() - startzeit
     B("")
@@ -361,6 +407,72 @@ def _variantenanalyse(sequenzen, namen, identitaeten, E, ausgabe_ordner, B):
 # ======================================================================
 # Stammbaum
 # ======================================================================
+
+def _proteinvergleich(sequenzen, namen, E, ausgabe_ordner, B, max_proteine=40):
+    """Übersetzt das Gen jeder Sequenz und vergleicht die Proteine (BLOSUM62, affine Lücken wie BLASTP)."""
+    P = {"proteine": [], "paare": [], "referenz": None, "vergleiche": [], "hinweis": ""}
+    for n in namen:
+        s = sequenzen[n]
+        protein, cds = protein_aus_dna(s, min_as=30)
+        eintrag = {"name": n, "protein": None, "quelle": "kein Gen erkannt (kein ORF ab 30 AS)"}
+        if protein:
+            anteil = (cds[1] - cds[0] + 1) / len(s)
+            if anteil >= 0.5:
+                eintrag.update(protein=protein, quelle=f"Gen {cds[0]}–{cds[1]}")
+            elif len(s) > 5000:
+                eintrag.update(protein=protein, quelle=f"längster ORF {cds[0]}–{cds[1]} (Genom, nur ein Gen)")
+            else:
+                eintrag["quelle"] = f"kein eindeutiges Gen (längster ORF deckt nur {anteil * 100:.0f} % ab)"
+        P["proteine"].append(eintrag)
+        B(f"{n[:48]:<48} {len(protein or ''):>6} AS   {eintrag['quelle']}")
+    mit = [e for e in P["proteine"] if e["protein"]]
+    with open(os.path.join(ausgabe_ordner, "proteine.fasta"), "w") as f:
+        for e in mit:
+            f.write(f">{e['name']} {e['quelle']}\n")
+            for i in range(0, len(e["protein"]), 70):
+                f.write(e["protein"][i:i + 70] + "\n")
+    if len(mit) < 2:
+        P["hinweis"] = "Für einen Protein-Vergleich braucht man mindestens 2 Sequenzen mit erkennbarem Gen."
+        B(P["hinweis"])
+        return P
+    if len(mit) > max_proteine:
+        P["hinweis"] = f"Nur die ersten {max_proteine} Proteine werden paarweise verglichen."
+        mit = mit[:max_proteine]
+    ref = next((e for e in mit if e["name"] == E["REFERENZ"]), mit[0])
+    P["referenz"] = ref["name"]
+    prot = {e["name"]: e["protein"] for e in mit}
+    with open(os.path.join(ausgabe_ordner, "protein_alignments.txt"), "w") as f_aln:
+        for i in range(len(mit)):
+            for j in range(i + 1, len(mit)):
+                a, b = mit[i]["name"], mit[j]["name"]
+                erg = ausrichten_protein(prot[a], prot[b])
+                st = protein_statistik(erg["a1"], erg["a2"])
+                P["paare"].append({"a": a, "b": b, "identitaet": st["identitaet"], "aehnlichkeit": st["aehnlichkeit"],
+                                   "luecken": st["luecken"]})
+                f_aln.write(f"### {a}  vs  {b}\nIdentität {st['identitaet']:.1f} %, Ähnlichkeit "
+                            f"{st['aehnlichkeit']:.1f} %, Lücken {st['luecken']}\n\n"
+                            f"{protein_alignment_text(erg)}\n\n")
+    B(f"Referenz: {ref['name']} ({len(ref['protein'])} AS)")
+    B(f"{'Protein':<48} {'Länge':>6} {'Identität':>10} {'Ähnlichkeit':>12} {'Unterschiede':>13}")
+    with open(os.path.join(ausgabe_ordner, "protein_unterschiede.csv"), "w") as csv:
+        csv.write("referenz;protein;art;position;ref;alt;blosum62;bewertung\n")
+        for e in mit:
+            if e["name"] == ref["name"]:
+                continue
+            erg = ausrichten_protein(ref["protein"], e["protein"])
+            st = protein_statistik(erg["a1"], erg["a2"])
+            unterschiede = protein_unterschiede(erg["a1"], erg["a2"])
+            P["vergleiche"].append({"name": e["name"], "laenge": len(e["protein"]), **st,
+                                    "unterschiede": unterschiede})
+            B(f"{e['name'][:48]:<48} {len(e['protein']):>6} {st['identitaet']:>9.1f}% {st['aehnlichkeit']:>11.1f}% "
+              f"{len(unterschiede):>13}")
+            for d in unterschiede:
+                csv.write(f"{ref['name']};{e['name']};{d['art']};{d['position']};{d['ref']};{d['alt']};"
+                          f"{'' if d['punkte'] is None else d['punkte']};{d['bewertung']}\n")
+    B("→ proteine.fasta, protein_alignments.txt, protein_unterschiede.csv")
+    B("   Identität = gleiche Aminosäure; Ähnlichkeit = gleich oder ähnlich (BLOSUM62-Wert > 0).")
+    return P
+
 
 def _stammbaum(sequenzen, namen, paare, distanzen_aln, E, ausgabe_ordner, B):
     if len(namen) < 3:

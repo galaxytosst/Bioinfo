@@ -279,10 +279,17 @@ def smith_waterman(s1, s2, match=1, mismatch=-1, gap=-2):
 # benutzt deshalb das normale globale Alignment (freie_enden=False).
 
 def ausrichten(s1, s2, modus="global", match=2, mismatch=-3, luecke_oeffnen=5, luecke_verlaengern=2,
-               freie_enden=False):
+               freie_enden=False, matrix=None):
     """Alignment mit affiner Lückenstrafe. modus = "global" oder "lokal".
+    matrix: optional eine Substitutionsmatrix (z. B. BLOSUM62 für Proteine) statt match/mismatch.
     Gibt dict mit score, a1, a2, start1, start2 (ab 1) zurück, wie needleman_wunsch."""
     import numpy as np
+    tabelle = None
+    if matrix is not None:                          # Punkte für jedes Buchstabenpaar nachschlagen
+        tabelle = np.full((128, 128), min(min(z.values()) for z in matrix.values()), dtype=float)
+        for x, zeile in matrix.items():
+            for y, wert in zeile.items():
+                tabelle[ord(x), ord(y)] = wert
     lokal = modus == "lokal"
     n, m = len(s1), len(s2)
     o, e = float(luecke_oeffnen), float(luecke_verlaengern)
@@ -310,7 +317,10 @@ def ausrichten(s1, s2, modus="global", match=2, mismatch=-3, luecke_oeffnen=5, l
         F = np.where(F_ext, F_verl, F_oeffnen)
         # diagonal (Match / Mismatch)
         diag = np.full(m + 1, NEG)
-        diag[1:] = H[:-1] + np.where(b2 == ord(s1[i - 1]), match, mismatch)
+        if tabelle is None:
+            diag[1:] = H[:-1] + np.where(b2 == ord(s1[i - 1]), match, mismatch)
+        else:
+            diag[1:] = H[:-1] + tabelle[ord(s1[i - 1]), b2]
         Ht = np.maximum(diag, F)
         quelle = np.where(diag >= F, 1, 2).astype(np.uint8)
         if lokal:
@@ -845,3 +855,156 @@ def vergleiche_proteine(p_ref, p_var):
     while i < min(len(p_ref), len(p_var)) and p_ref[i] == p_var[i]:
         i += 1
     return f"Länge {len(p_ref)} → {len(p_var)} AS, erste Abweichung an Aminosäure {i + 1}"
+
+
+# ======================================================================
+# Proteine vergleichen
+# ======================================================================
+# BLOSUM62: Punkte für jedes Aminosäurepaar, abgeleitet aus echten, verwandten Proteinen
+# (Henikoff & Henikoff 1992). Positiv = der Austausch kommt in der Natur oft vor (ähnliche
+# Aminosäuren, z. B. I↔V +3), negativ = selten (z. B. W↔G −2). Standard bei BLASTP.
+# B = D oder N, Z = E oder Q, X = unbekannt, * = Stopp.
+_BLOSUM62_TEXT = """
+      A  R  N  D  C  Q  E  G  H  I  L  K  M  F  P  S  T  W  Y  V  B  Z  X  *
+  A   4 -1 -2 -2  0 -1 -1  0 -2 -1 -1 -1 -1 -2 -1  1  0 -3 -2  0 -2 -1  0 -4
+  R  -1  5  0 -2 -3  1  0 -2  0 -3 -2  2 -1 -3 -2 -1 -1 -3 -2 -3 -1  0 -1 -4
+  N  -2  0  6  1 -3  0  0  0  1 -3 -3  0 -2 -3 -2  1  0 -4 -2 -3  3  0 -1 -4
+  D  -2 -2  1  6 -3  0  2 -1 -1 -3 -4 -1 -3 -3 -1  0 -1 -4 -3 -3  4  1 -1 -4
+  C   0 -3 -3 -3  9 -3 -4 -3 -3 -1 -1 -3 -1 -2 -3 -1 -1 -2 -2 -1 -3 -3 -2 -4
+  Q  -1  1  0  0 -3  5  2 -2  0 -3 -2  1  0 -3 -1  0 -1 -2 -1 -2  0  3 -1 -4
+  E  -1  0  0  2 -4  2  5 -2  0 -3 -3  1 -2 -3 -1  0 -1 -3 -2 -2  1  4 -1 -4
+  G   0 -2  0 -1 -3 -2 -2  6 -2 -4 -4 -2 -3 -3 -2  0 -2 -2 -3 -3 -1 -2 -1 -4
+  H  -2  0  1 -1 -3  0  0 -2  8 -3 -3 -1 -2 -1 -2 -1 -2 -2  2 -3  0  0 -1 -4
+  I  -1 -3 -3 -3 -1 -3 -3 -4 -3  4  2 -3  1  0 -3 -2 -1 -3 -1  3 -3 -3 -1 -4
+  L  -1 -2 -3 -4 -1 -2 -3 -4 -3  2  4 -2  2  0 -3 -2 -1 -2 -1  1 -4 -3 -1 -4
+  K  -1  2  0 -1 -3  1  1 -2 -1 -3 -2  5 -1 -3 -1  0 -1 -3 -2 -2  0  1 -1 -4
+  M  -1 -1 -2 -3 -1  0 -2 -3 -2  1  2 -1  5  0 -2 -1 -1 -1 -1  1 -3 -1 -1 -4
+  F  -2 -3 -3 -3 -2 -3 -3 -3 -1  0  0 -3  0  6 -4 -2 -2  1  3 -1 -3 -3 -1 -4
+  P  -1 -2 -2 -1 -3 -1 -1 -2 -2 -3 -3 -1 -2 -4  7 -1 -1 -4 -3 -2 -2 -1 -2 -4
+  S   1 -1  1  0 -1  0  0  0 -1 -2 -2  0 -1 -2 -1  4  1 -3 -2 -2  0  0  0 -4
+  T   0 -1  0 -1 -1 -1 -1 -2 -2 -1 -1 -1 -1 -2 -1  1  5 -2 -2  0 -1 -1  0 -4
+  W  -3 -3 -4 -4 -2 -2 -3 -2 -2 -3 -2 -3 -1  1 -4 -3 -2 11  2 -3 -4 -3 -2 -4
+  Y  -2 -2 -2 -3 -2 -1 -2 -3  2 -1 -1 -2 -1  3 -3 -2 -2  2  7 -1 -3 -2 -1 -4
+  V   0 -3 -3 -3 -1 -2 -2 -3 -3  3  1 -2  1 -1 -2 -2  0 -3 -1  4 -3 -2 -1 -4
+  B  -2 -1  3  4 -3  0  1 -1  0 -3 -4  0 -3 -3 -2  0 -1 -4 -3 -3  4  1 -1 -4
+  Z  -1  0  0  1 -3  3  4 -2  0 -3 -3  1 -1 -3 -1  0 -1 -3 -2 -2  1  4 -1 -4
+  X   0 -1 -1 -1 -2 -1 -1 -1 -1 -1 -1 -1 -1 -1 -2  0  0 -2 -1 -1 -1 -1 -1 -4
+  *  -4 -4 -4 -4 -4 -4 -4 -4 -4 -4 -4 -4 -4 -4 -4 -4 -4 -4 -4 -4 -4 -4 -4  1
+"""
+
+
+def _lese_matrix(text):
+    zeilen = [z.split() for z in text.strip().split("\n")]
+    kopf = zeilen[0]
+    return {z[0]: {b: int(w) for b, w in zip(kopf, z[1:])} for z in zeilen[1:]}
+
+
+BLOSUM62 = _lese_matrix(_BLOSUM62_TEXT)
+
+# Vereinfachte Lehrbuch-Einteilung der Aminosäuren nach ihrer Seitenkette
+EIGENSCHAFT = {}
+for _gruppe, _buchstaben in [("unpolar", "GAVLIMFWP"), ("polar", "STCYNQ"), ("basisch (+)", "KRH"),
+                             ("sauer (−)", "DE")]:
+    for _b in _buchstaben:
+        EIGENSCHAFT[_b] = _gruppe
+
+
+def ist_protein(seq):
+    """True, wenn die Sequenz eher Aminosäuren als Basen enthält."""
+    if not seq:
+        return False
+    basen = sum(seq.count(b) for b in "ACGTUN")
+    return basen < 0.9 * len(seq)
+
+
+def protein_aus_dna(dna, min_as=30):
+    """Protein des Gens in einer DNA/mRNA: längster ORF ab ATG auf dem + Strang.
+    Gibt (protein, (start, ende)) oder (None, None) zurück."""
+    cds = finde_cds(dna, min_as=min_as)
+    if not cds:
+        return None, None
+    return uebersetze(dna[cds[0] - 1:cds[1]]), cds
+
+
+def ausrichten_protein(p1, p2, modus="global", luecke_oeffnen=11, luecke_verlaengern=1):
+    """Protein-Alignment mit BLOSUM62 und affinen Lücken (Standardwerte von NCBI BLASTP)."""
+    p1, p2 = p1.upper().rstrip("*"), p2.upper().rstrip("*")
+    return ausrichten(p1, p2, modus, luecke_oeffnen=luecke_oeffnen, luecke_verlaengern=luecke_verlaengern,
+                      matrix=BLOSUM62)
+
+
+def protein_statistik(a1, a2):
+    """Identität (gleiche Aminosäure) und Ähnlichkeit (BLOSUM62 > 0, also ähnliche Aminosäure)
+    im überlappenden Bereich."""
+    spalten = [k for k in range(len(a1)) if a1[k] != "-" and a2[k] != "-"]
+    if not spalten:
+        return {"laenge": 0, "gleich": 0, "aehnlich": 0, "luecken": 0, "identitaet": 0.0, "aehnlichkeit": 0.0}
+    a1, a2 = a1[spalten[0]:spalten[-1] + 1], a2[spalten[0]:spalten[-1] + 1]
+    gleich = aehnlich = luecken = 0
+    for x, y in zip(a1, a2):
+        if x == "-" or y == "-":
+            luecken += 1
+        elif x == y:
+            gleich += 1; aehnlich += 1
+        elif BLOSUM62.get(x, {}).get(y, -4) > 0:
+            aehnlich += 1
+    n = len(a1)
+    return {"laenge": n, "gleich": gleich, "aehnlich": aehnlich, "luecken": luecken,
+            "identitaet": gleich / n * 100, "aehnlichkeit": aehnlich / n * 100}
+
+
+def protein_unterschiede(a1, a2):
+    """Alle Unterschiede im Alignment, Positionen in Protein 1 (ab 1), mit Eigenschaftsänderung."""
+    spalten = [k for k in range(len(a1)) if a1[k] != "-" and a2[k] != "-"]
+    if not spalten:
+        return []
+    erste, letzte = spalten[0], spalten[-1]
+    liste, pos = [], 0
+    for k, (x, y) in enumerate(zip(a1, a2)):
+        if x != "-":
+            pos += 1
+        if k < erste or k > letzte or x == y:
+            continue
+        if x == "-":
+            liste.append({"position": pos, "art": "Insertion", "ref": "", "alt": y, "punkte": None,
+                          "bewertung": "zusätzliche Aminosäure"})
+        elif y == "-":
+            liste.append({"position": pos, "art": "Deletion", "ref": x, "alt": "", "punkte": None,
+                          "bewertung": "Aminosäure fehlt"})
+        else:
+            punkte = BLOSUM62.get(x, {}).get(y, -4)
+            e1, e2 = EIGENSCHAFT.get(x, "?"), EIGENSCHAFT.get(y, "?")
+            if e1 == e2:
+                text = f"ähnlich: beide {e1}"
+            else:
+                text = f"{e1} → {e2}"
+            if punkte > 0:
+                text += ", häufiger Austausch (konservativ)"
+            elif punkte < 0:
+                text += ", seltener Austausch"
+            liste.append({"position": pos, "art": "Austausch", "ref": x, "alt": y, "punkte": punkte,
+                          "bewertung": text})
+    # zusammenhängende Lücken zusammenfassen
+    zusammen = []
+    for d in liste:
+        letzte_d = zusammen[-1] if zusammen else None
+        if (letzte_d and d["art"] == letzte_d["art"] and d["art"] != "Austausch" and
+                d["position"] - letzte_d["ende"] <= (1 if d["art"] == "Deletion" else 0)):
+            letzte_d["ref"] += d["ref"]; letzte_d["alt"] += d["alt"]; letzte_d["ende"] = d["position"]
+        else:
+            zusammen.append(dict(d, ende=d["position"]))
+    return zusammen
+
+
+def protein_alignment_text(erg, breite=60):
+    """Protein-Alignment als Text; Mittelzeile: | gleich, + ähnlich (BLOSUM62 > 0), Leerzeichen sonst."""
+    a1, a2 = erg["a1"], erg["a2"]
+    mitte = "".join("|" if x == y else ("+" if x != "-" and y != "-" and BLOSUM62.get(x, {}).get(y, -4) > 0
+                                        else " ") for x, y in zip(a1, a2))
+    zeilen, p1, p2 = [], erg["start1"], erg["start2"]
+    for k in range(0, len(a1), breite):
+        t1, t2 = a1[k:k + breite], a2[k:k + breite]
+        zeilen += [f"Prot1 {p1:>6}  {t1}", f"              {mitte[k:k + breite]}", f"Prot2 {p2:>6}  {t2}", ""]
+        p1 += len(t1) - t1.count("-")
+        p2 += len(t2) - t2.count("-")
+    return "\n".join(zeilen)
