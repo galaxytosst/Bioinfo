@@ -415,7 +415,7 @@ def uniprot_merkmale(nummer):
     merkmale = []
     for m in daten.get("features", []):
         art = UNIPROT_ARTEN.get(m.get("type"))
-        if not art:
+        if not art or (m.get("description") or "").startswith("(Microbial infection)"):
             continue
         try:
             start = int(m["location"]["start"]["value"])
