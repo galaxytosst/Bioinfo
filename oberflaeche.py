@@ -589,6 +589,373 @@ def protein_vergleich_html(text1, text2, modus="global"):
     return _kasten("".join(teile))
 
 
+# ----------------------------------------------------------------------
+# 3D-Struktur: Bindestelle, Lage von Mutationen, 3D-Ansicht
+# ----------------------------------------------------------------------
+
+DREIDMOL_URL = "https://cdn.jsdelivr.net/npm/3dmol@2.4.2/build/3Dmol-min.js"
+STRUKTUR_ORDNER = os.path.abspath("strukturen")
+
+
+def _js_auswahl(S, indizes):
+    """3Dmol-Auswahl {chain, resi} für eine Liste von Rest-Indizes, nach Kette gruppiert."""
+    nach_kette = {}
+    for j in indizes:
+        r = S["reste"][j]
+        nach_kette.setdefault(r["kette"], []).append(r["nr"])
+    return [{"chain": k if k != "_" else "", "resi": sorted(set(v))} for k, v in nach_kette.items()]
+
+
+def _ansicht_3d(S, pdb_text, kette=None, bindestelle=(), positionen=(), merkmale=(), hoehe=520):
+    """HTML mit 3Dmol.js: Cartoon, Liganden als Stäbchen, Bindestelle hellblau, Positionen rot."""
+    import json as _json
+    import uuid
+    zeilen = [z for z in pdb_text.splitlines()
+              if z.startswith(("ATOM", "HETATM", "TER", "HELIX", "SHEET", "MODEL", "ENDMDL"))
+              and z[17:20].strip() not in ("HOH", "WAT", "DOD")]
+    modell = []
+    for z in zeilen:                         # nur das erste Modell
+        modell.append(z)
+        if z.startswith("ENDMDL"):
+            break
+    kennung = "v" + uuid.uuid4().hex[:10]
+    labels = []
+    for j, text in positionen:
+        r = S["reste"][j]
+        labels.append({"text": text, "sel": {"chain": r["kette"], "resi": r["nr"], "atom": "CA"}})
+    befehle = []
+    if S["alphafold"]:
+        befehle.append("v.setStyle({}, {cartoon: {colorfunc: function(a) { return a.b > 90 ? '#0053D6' : "
+                       "a.b > 70 ? '#65CBF3' : a.b > 50 ? '#FFDB13' : '#FF7D45'; }}});")
+    else:
+        befehle.append("v.setStyle({}, {cartoon: {color: '#d0d0d0'}});")
+        if kette:
+            befehle.append(f"v.setStyle({{chain: {_json.dumps(kette)}}}, {{cartoon: {{color: 'spectrum'}}}});")
+    ligand_namen = sorted({S["reste"][j]["name"] for j in S["liganden"]})
+    if ligand_namen:
+        befehle.append(f"v.addStyle({{resn: {_json.dumps(ligand_namen)}}}, "
+                       "{stick: {colorscheme: 'greenCarbon', radius: 0.25}});")
+    for sel in _js_auswahl(S, bindestelle):
+        befehle.append(f"v.addStyle({_json.dumps(sel)}, {{stick: {{colorscheme: 'cyanCarbon', radius: 0.18}}}});")
+    for sel in _js_auswahl(S, [j for j, _t in merkmale]):
+        befehle.append(f"v.addStyle({_json.dumps(sel)}, {{stick: {{colorscheme: 'orangeCarbon', radius: 0.22}}}});")
+    for sel in _js_auswahl(S, [j for j, _t in positionen]):
+        befehle.append(f"v.addStyle({_json.dumps(sel)}, {{sphere: {{color: '#D55E00', scale: 0.75}}}});")
+    befehle.append("L.forEach(function(l) { v.addLabel(l.text, {fontSize: 13, fontColor: 'white', "
+                   "backgroundColor: '#D55E00', backgroundOpacity: 0.85, inFront: true}, l.sel); });")
+    zoom = _json.dumps({"chain": kette}) if kette else "{}"
+    skript = f"""
+<div id="{kennung}" style="width:100%;height:{hoehe}px;position:relative;border:1px solid #ddd;border-radius:6px;
+background:#fff;"><div style="padding:12px;color:#666;font-family:sans-serif;">3D-Ansicht wird geladen …</div></div>
+<script>
+(function() {{
+  var pdb = {_json.dumps(chr(10).join(modell))};
+  var L = {_json.dumps(labels)};
+  function zeichne() {{
+    var el = document.getElementById("{kennung}");
+    el.innerHTML = "";
+    var v = $3Dmol.createViewer(el, {{backgroundColor: "white"}});
+    v.addModel(pdb, "pdb");
+    {chr(10).join("    " + b for b in befehle)}
+    v.zoomTo({zoom});
+    v.render();
+  }}
+  if (window.$3Dmol) {{ zeichne(); return; }}
+  var s = document.createElement("script");
+  s.src = "{DREIDMOL_URL}";
+  s.onload = zeichne;
+  s.onerror = function() {{
+    document.getElementById("{kennung}").innerHTML = "<div style='padding:12px'>Die 3D-Ansicht konnte nicht " +
+      "geladen werden (keine Verbindung zu cdn.jsdelivr.net). Die Tabellen oben gelten trotzdem.</div>";
+  }};
+  document.head.appendChild(s);
+}})();
+</script>"""
+    return skript
+
+
+def _zugaenglichkeit_abbildung(S, kette, bindestelle=(), positionen=()):
+    """Balken: relative Zugänglichkeit jedes Restes der Kette; blau = berührt Ligand, rot = gewählte Position."""
+    from matplotlib.figure import Figure
+    reste = S["ketten"][kette]["reste"]
+    werte = [S["reste"][j].get("relativ") or 0 for j in reste]
+    nummern = [S["reste"][j]["nr"] for j in reste]
+    farben = ["#0072B2" if j in bindestelle else "#bdbdbd" for j in reste]
+    hoehe = 3.6 if S["alphafold"] else 2.8
+    fig = Figure(figsize=(11, hoehe))
+    if S["alphafold"]:
+        ax, ax2 = fig.subplots(2, 1, sharex=True, gridspec_kw={"height_ratios": [2, 1]})
+    else:
+        ax = fig.add_subplot()
+    ax.bar(nummern, werte, width=1.0, color=farben)
+    ax.axhline(20, color="#888", lw=0.8, ls="--")
+    ax.text(nummern[0], 21, "unter 20 % = vergraben", fontsize=7, color="#666")
+    for j, text in positionen:
+        r = S["reste"][j]
+        if r["kette"] == kette:
+            ax.bar([r["nr"]], [max(r.get("relativ") or 0, 3)], width=1.6, color="#D55E00")
+            ax.annotate(text, (r["nr"], max(r.get("relativ") or 0, 3)), textcoords="offset points",
+                        xytext=(0, 4), ha="center", fontsize=8, color="#D55E00")
+    ax.set_ylabel("frei zugänglich (%)", fontsize=8)
+    ax.set_ylim(0, 110)
+    ax.set_title(f"Kette {kette}: Oberfläche je Aminosäure (blau = berührt einen Liganden, rot = gewählte Position)",
+                 fontsize=9, loc="left")
+    for a in [ax] + ([ax2] if S["alphafold"] else []):
+        a.spines[["top", "right"]].set_visible(False)
+        a.tick_params(labelsize=8)
+    if S["alphafold"]:
+        plddt = [float(S["b"][S["reste"][j]["atome"]].mean()) for j in reste]
+        ax2.plot(nummern, plddt, color="#0053D6", lw=1.2)
+        ax2.axhline(70, color="#888", lw=0.8, ls="--")
+        ax2.set_ylim(0, 100)
+        ax2.set_ylabel("pLDDT", fontsize=8)
+        ax2.set_xlabel("Nummer in der Struktur", fontsize=8)
+    else:
+        ax.set_xlabel("Nummer in der Struktur", fontsize=8)
+    fig.tight_layout()
+    return fig
+
+
+def struktur_html(struktur, protein_text=None, positionen="", uniprot="", grenze=4.0, ordner=None):
+    """3D-Struktur laden und auswerten. struktur = PDB-ID, UniProt-Nummer (AlphaFold) oder Dateipfad.
+    protein_text = Protein/DNA, auf das sich die Positionen beziehen (None = Nummern der Struktur).
+    positionen = z. B. "7" oder "E7V, 64". uniprot = UniProt-Nummer für bekannte aktive Stellen/Bindestellen."""
+    import numpy as np
+    import struktur as st
+    text, quelle = st.lade_struktur(struktur, ordner or STRUKTUR_ORDNER)
+    S = st.lese_pdb(text)
+    st.zugaenglichkeit(S)
+    teile, warnungen = [], []
+
+    # --- Kopf
+    kennung = st.kennung_aus_text(struktur) if not os.path.isfile(struktur) else os.path.basename(struktur)
+    teile.append(f"<h3 style='margin:4px 0'>{_e(kennung)}: {_e(S['titel'] or 'ohne Titel')}</h3>")
+    info = [_e(quelle)]
+    if S["alphafold"]:
+        info.append("Vorhersage (AlphaFold), nicht gemessen")
+    elif S["methode"]:
+        info.append(_e(S["methode"].title()))
+    if S["aufloesung"]:
+        info.append(f"Auflösung {S['aufloesung']:.2f} Å")
+    teile.append("<div>" + " · ".join(info) + "</div>")
+    if S["aufloesung"]:
+        teile.append("<div><small>Auflösung: je kleiner, desto genauer. Unter etwa 2,5 Å sind einzelne Seitenketten "
+                     "gut erkennbar, über 3,5 Å nur noch grob.</small></div>")
+    zeilen = []
+    gruppen = {}
+    for k, inf in S["ketten"].items():
+        gruppen.setdefault(inf["sequenz"], []).append(k)
+    for seq, ks in gruppen.items():
+        zeilen.append([", ".join(ks), len(seq), f'<span style="font-family:monospace;font-size:12px">'
+                       f'{_e(seq[:40])}{"…" if len(seq) > 40 else ""}</span>'])
+    teile.append(_tabelle(["Kette(n)", "Aminosäuren", "Sequenz (Anfang)"], zeilen, rechts=(1,)))
+    liganden = {}
+    for j in S["liganden"]:
+        liganden.setdefault(S["reste"][j]["name"], []).append(j)
+    if liganden:
+        teile.append("<div><b>Liganden</b> (gebundene Moleküle, ohne Wasser): " + ", ".join(
+            f"{_e(st.ligand_name(n))} × {len(v)}" for n, v in liganden.items()) + "</div>")
+    elif S["alphafold"]:
+        warnungen.append("AlphaFold-Modelle enthalten keine Liganden (kein Häm, kein Hemmstoff). Für die Bindestelle "
+                         "eine gemessene Struktur aus der PDB nehmen, z. B. 4HHB für Hämoglobin.")
+    else:
+        warnungen.append("Diese Struktur enthält keine Liganden. Eine Bindestelle lässt sich hier nicht ablesen.")
+    if S["alphafold"]:
+        mittel = float(np.mean([S["b"][r["atome"]].mean() for r in S["reste"] if r["typ"] == "aminosaeure"]))
+        teile.append(f"<div>AlphaFold-Sicherheit (pLDDT) im Mittel: <b>{mittel:.0f}</b> von 100 · Farben in 3D: "
+                     "<span style='color:#0053D6'>■</span> über 90 sehr sicher, <span style='color:#65CBF3'>■</span> "
+                     "70–90 sicher, <span style='color:#d4b000'>■</span> 50–70 unsicher, "
+                     "<span style='color:#FF7D45'>■</span> unter 50 sehr unsicher (oft ungeordnete Bereiche)</div>")
+
+    # --- Protein zuordnen
+    zuordnung, kette, protein, pname = None, None, None, None
+    uni = None
+    if uniprot.strip():
+        try:
+            uni = st.uniprot_merkmale(uniprot)
+        except Exception as fehler:          # Netz, unbekannte Nummer oder geändertes Format
+            warnungen.append(f"UniProt {uniprot.strip()} konnte nicht gelesen werden ({type(fehler).__name__}). "
+                             f"Der Rest der Auswertung ist davon nicht betroffen.")
+    if protein_text and protein_text.strip():
+        pname, protein, _q, hinweise = _lese_protein(protein_text)
+        warnungen += hinweise
+    if protein:
+        z = st.ordne_protein_zu(S, protein)
+        if z["identitaet"] < 30 or z["abgedeckt"] < 20:
+            warnungen.append(f"„{pname}“ passt zu keiner Kette dieser Struktur (beste: Kette {z['kette']}, "
+                             f"{z['identitaet']:.0f} % gleich). Die Positionen werden deshalb als Nummern der "
+                             f"Struktur gelesen.")
+            protein = None
+        else:
+            zuordnung, kette = z["zuordnung"], z["kette"]
+            gleich = f" Dieselbe Sequenz haben auch Kette {', '.join(z['gleiche_ketten'])}." if z["gleiche_ketten"] else ""
+            beispiel = next(iter(sorted(zuordnung.items())), None)
+            versatz = ""
+            if beispiel:
+                pos, j = beispiel
+                if S["reste"][j]["nr"] != pos:
+                    versatz = (f" Achtung, die Nummern unterscheiden sich: Position {pos} im Protein ist "
+                               f"{_e(st.rest_text(S['reste'][j]))} in der Struktur.")
+            teile.append(_hinweis(f"„{_e(pname)}“ ({len(protein)} AS) entspricht <b>Kette {_e(kette)}</b>: "
+                                  f"{z['identitaet']:.0f} % gleich über {z['abgedeckt']} Positionen.{_e(gleich)}"
+                                  f"{versatz}", "info"))
+    if kette is None:
+        kette = next(iter(S["ketten"]), None)
+    z_uni, uni_varianten = None, None
+    if uni and uni["sequenz"]:
+        z_uni = st.ordne_protein_zu(S, uni["sequenz"])
+        if z_uni["identitaet"] < 30:
+            warnungen.append(f"Die UniProt-Sequenz {uniprot.strip().upper()} passt nicht zu dieser Struktur "
+                             f"({z_uni['identitaet']:.0f} % gleich). Prüfe die Nummer.")
+            z_uni = None
+        else:
+            uni_varianten = {}
+            for v in uni["varianten"]:
+                j = z_uni["zuordnung"].get(v["position"])
+                if j is not None:
+                    uni_varianten.setdefault(j, []).append(v)
+
+    # --- gewählte Positionen
+    gewaehlt, ergebnisse = [], []
+    if positionen.strip():
+        for pos, alt, neu in st.lies_positionen(positionen):
+            if zuordnung is not None:
+                j = zuordnung.get(pos)
+                if j is None:
+                    warnungen.append(f"Position {pos} des Proteins ist in der Struktur nicht enthalten "
+                                     f"(nicht aufgelöst oder außerhalb).")
+                    continue
+            else:
+                treffer = [j for j in S["ketten"].get(kette, {"reste": []})["reste"] if S["reste"][j]["nr"] == pos]
+                if not treffer:
+                    warnungen.append(f"Kette {kette} hat keinen Rest Nummer {pos}.")
+                    continue
+                j = treffer[0]
+            r = S["reste"][j]
+            if alt and alt != r["buchstabe"]:
+                warnungen.append(f"Position {pos}: Du hast {alt} angegeben, in der Struktur steht dort "
+                                 f"{st.rest_text(r)}. Prüfe die Nummerierung.")
+            b = st.bewerte_position(S, j, neu, grenze)
+            b["eingabe"] = f"{alt or ''}{pos}{neu or ''}"
+            b["index"] = j
+            ergebnisse.append(b)
+            gewaehlt.append((j, st.rest_text(r, False) + (f"→{neu}" if neu else "")))
+    for w in warnungen:
+        teile.append(_hinweis(_e(w), "warnung"))
+    if ergebnisse:
+        teile.append("<h3 style='margin:12px 0 4px'>Wo liegen die gewählten Positionen?</h3>")
+        zeilen = []
+        for b in ergebnisse:
+            r = b["rest"]
+            lig = (f"{_e(st.ligand_name(S['reste'][b['ligand'][0]]['name']))}: {b['ligand'][1]:.1f} Å"
+                   if b["ligand"] else "–")
+            zeile = [_e(b["eingabe"]), _e(st.rest_text(r)),
+                     f"{b['relativ']:.0f} %" if b["relativ"] is not None else "–", _e(b["lage"]), lig,
+                     _e(", ".join(b["andere_ketten"]) or "–"),
+                     "<br>".join(_e(h) for h in b["hinweise"]) or "–"]
+            if uni_varianten is not None:
+                bekannt = uni_varianten.get(b["index"], [])
+                zeile.append("<br>".join(f"<b>{_e(v['ref'])}→{_e(v['alt'])}</b>: {_e(v['text'])}"
+                                         for v in bekannt[:8]) or "keine")
+            zeilen.append(zeile)
+        teile.append(_tabelle(["Eingabe", "In der Struktur", "Frei zugänglich", "Lage", "Nächster Ligand",
+                               "Kontakt zu Kette", "Einschätzung"]
+                              + (["Bekannte Varianten (UniProt)"] if uni_varianten is not None else []),
+                              zeilen, rechts=(2,)))
+        teile.append("<div><small><b>Frei zugänglich</b>: wie viel der Oberfläche dieser Aminosäure Wasser "
+                     "berühren kann (Shrake-Rupley, mit allen Ketten und Liganden der Datei). Unter 20 % gilt als "
+                     "vergraben, über 50 % als Oberfläche (übliche Faustregeln). Die Einschätzung ist ein Hinweis aus "
+                     "Lage und Chemie, keine Vorhersage der Stabilität.</small></div>")
+
+    # --- Bindestellen
+    bindestelle = set()
+    zeige = []
+    for name, js in liganden.items():
+        if name in st.ZUSAETZE:
+            continue
+        for j in js:
+            k = st.kontakte(S, j, grenze)
+            if any(S["reste"][a]["kette"] == kette for a, _d in k):
+                zeige.append((j, k))
+                break
+        else:
+            if js:
+                zeige.append((js[0], st.kontakte(S, js[0], grenze)))
+    if zeige:
+        teile.append("<h3 style='margin:12px 0 4px'>Bindestellen: welche Aminosäuren berühren den Liganden?</h3>")
+        teile.append("<div><small>Gezählt wird jede Aminosäure mit einem Atom höchstens "
+                     f"{grenze:.1f} Å vom Liganden entfernt (Wasserstoffbrücken sind etwa 2,6–3,3 Å lang). "
+                     "Bei Enzymen liegt hier das <b>aktive Zentrum</b>, bei Hämoglobin die Tasche, die das Häm "
+                     "und damit den Sauerstoff hält.</small></div>")
+        rueck = {j: p for p, j in (zuordnung or {}).items()}
+        for j, k in zeige:
+            L = S["reste"][j]
+            bindestelle.update(a for a, _d in k)
+            zeilen = []
+            for a, d in k:
+                r = S["reste"][a]
+                zeile = [_e(st.rest_text(r)), f"{d:.1f} Å", _e(wz.EIGENSCHAFT.get(r["buchstabe"], "?")),
+                         f"{r['relativ']:.0f} %" if r.get("relativ") is not None else "–"]
+                if zuordnung:
+                    zeile.insert(2, rueck.get(a, "–"))
+                zeilen.append(zeile)
+            anzahl = len(liganden[L["name"]])
+            offen = " open" if len(zeige) <= 2 else ""
+            teile.append(f"<details{offen}><summary><b>{_e(st.ligand_name(L['name']))}</b> an "
+                         f"{_e(L['kette'])}:{_e(L['kurz'])}: {len(k)} Aminosäuren"
+                         + (f" (dieser Ligand kommt {anzahl}× vor, gezeigt ist der an Kette {_e(kette)})"
+                            if anzahl > 1 else "") + "</summary>"
+                         + _tabelle(["Aminosäure", "Abstand"] + (["Position im Protein"] if zuordnung else [])
+                                    + ["Gruppe", "Frei zugänglich"], zeilen,
+                                    rechts=(1, 2, 4) if zuordnung else (1, 3)) + "</details>")
+
+    # --- UniProt
+    merkmale_3d = []
+    if uni and uni["merkmale"]:
+        zeilen = []
+        for m in uni["merkmale"]:
+            orte = []
+            if z_uni:
+                for p in ([m["start"], m["ende"]] if m["art"] == "Disulfidbrücke" else
+                          range(m["start"], m["ende"] + 1)):
+                    j = z_uni["zuordnung"].get(p)
+                    if j is not None:
+                        orte.append(st.rest_text(S["reste"][j]))
+                        merkmale_3d.append((j, m["art"]))
+            pos = f"{m['start']}" if m["start"] == m["ende"] else f"{m['start']}–{m['ende']}"
+            zeilen.append([_e(m["art"]), pos, _e(m["text"] or "–"), _e(", ".join(orte[:6]) or "nicht in der Struktur")])
+        teile.append(f"<h3 style='margin:12px 0 4px'>Bekannt aus UniProt {_e(uniprot.strip().upper())}"
+                     f"{': ' + _e(uni['name']) if uni['name'] else ''}</h3>")
+        teile.append(_tabelle(["Art", "Position (UniProt)", "Beschreibung", "In der Struktur"], zeilen))
+        teile.append("<div><small>Diese Stellen wurden in Experimenten oder durch Vergleich mit verwandten Proteinen "
+                     "bestimmt (UniProt-Annotation). In 3D orange.</small></div>")
+    elif uni is not None:
+        teile.append(_hinweis("UniProt nennt für dieses Protein keine aktiven Stellen oder Bindestellen.", "info"))
+
+    # --- 3D und Diagramm
+    teile.append("<h3 style='margin:12px 0 4px'>3D-Ansicht</h3><div><small>Maus: ziehen = drehen, Mausrad = zoomen, "
+                 "Rechtsklick ziehen = verschieben. "
+                 + ("Farbe = AlphaFold-Sicherheit. " if S["alphafold"] else
+                    f"Kette {_e(kette)} in Regenbogenfarben (blau = Anfang, rot = Ende), andere Ketten grau. ")
+                 + "Grüne Stäbchen = Liganden, hellblau = Bindestelle, orange = UniProt-Stellen, "
+                 "rote Kugel = gewählte Position.</small></div>")
+    teile.append(_ansicht_3d(S, text, None if S["alphafold"] else kette, sorted(bindestelle), gewaehlt, merkmale_3d))
+    if kette:
+        teile.append(_bild(_zugaenglichkeit_abbildung(S, kette, bindestelle, gewaehlt)))
+
+    # --- Downloads
+    csv = ["kette;nummer;aminosaeure;flaeche_A2;frei_prozent;lage;beruehrt_ligand"]
+    for j, r in enumerate(S["reste"]):
+        if r["typ"] == "aminosaeure":
+            rel = f"{r['relativ']:.1f}" if r.get("relativ") is not None else ""
+            csv.append(f"{r['kette']};{r['kurz']};{r['name']};{r['flaeche']:.1f};{rel};{st.lage(r.get('relativ'))};"
+                       f"{'ja' if j in bindestelle else ''}")
+    teile.append("<div>" + _text_download("\n".join(csv) + "\n", f"{kennung}_oberflaeche.csv",
+                                          "Oberfläche je Aminosäure (CSV)") +
+                 _text_download(text, f"{kennung}.pdb", "Struktur (PDB-Datei)") + "</div>")
+    return _kasten("".join(teile))
+
+
 BEISPIEL_SEQUENZEN = {
     "kurzes Testgen": ("kurz", None),
     "HBB-mRNA des Menschen": ("01_sichelzellanaemie/1_HbA_normal_NM_000518.5.fasta", None),

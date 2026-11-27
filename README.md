@@ -13,7 +13,8 @@ Schritt für Schritt Bioinformatik mit Python lernen, an echten biologischen Bei
 | `werkzeuge.py` | Alle Funktionen als Modul (FASTA, Transkription, Translation, ORFs, Alignment inkl. affiner Lückenstrafe, Protein-Alignment mit BLOSUM62, Distanzen, Bäume, Varianten) |
 | `analyse.py` | Automatische Auswertung: `analysiere_ordner()` für ein Projekt, `analysiere_alle()` für viele Projekte; mit `SCHRITTE` wählbar: alles, ORFs, DNA-Vergleich, Mutationen, Protein-Vergleich, Stammbaum |
 | `bericht.py` | Gemeinsamer HTML-Bericht mit Tabellen und Diagrammen |
-| `App.ipynb` | Bioinformatik-App: alle Werkzeuge als Colab-Formulare (Auswahllisten, Textfelder), Code ausgeblendet. Box 1 = Analyse mit Auswahl der Analyseart, Box 6 = Protein-Vergleich |
+| `App.ipynb` | Bioinformatik-App: alle Werkzeuge als Colab-Formulare (Auswahllisten, Textfelder), Code ausgeblendet. Box 1 = Analyse mit Auswahl der Analyseart, Box 6 = Protein-Vergleich und Eigenschaften, Box 7 = 3D-Struktur |
+| `struktur.py` | 3D-Strukturen: laden (PDB, AlphaFold), Bindestellen, Oberfläche je Aminosäure (Shrake-Rupley), UniProt-Stellen |
 | `oberflaeche.py` | Klick-Oberfläche für Colab: Analyse, Sequenz umwandeln, ORFs, Vergleichen (DNA und Protein), Mutations-Labor, NCBI-Download |
 
 **Bedienung ohne Code (Formulare):** [App.ipynb in Colab öffnen](https://colab.research.google.com/github/galaxytosst/Bioinfo/blob/main/App.ipynb)
