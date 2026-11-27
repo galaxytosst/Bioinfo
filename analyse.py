@@ -341,14 +341,16 @@ def _strukturanalyse(P, E, ausgabe_ordner, B):
         for k in kandidaten[:4]:
             try:
                 text, quelle = st.lade_struktur(k["pdb"], STRUKTUR_ORDNER)
+                S = st.lese_pdb(text)
                 T["kandidat"] = k
                 break
-            except ValueError as fehler:        # z. B. nur im mmCIF-Format vorhanden
+            except ValueError as fehler:        # z. B. nur im mmCIF-Format vorhanden oder Datei ohne Atome
                 T["warnungen"].append(str(fehler))
+                text = None
         if text is None:
-            T["hinweis"] = "Keine der gefundenen Strukturen ließ sich laden."
+            T["hinweis"] = "Keine der Strukturen ließ sich laden: " + " ".join(T["warnungen"])
+            B("⚠️ " + T["hinweis"])
             return T
-        S = st.lese_pdb(text)
         st.zugaenglichkeit(S)
         z = st.ordne_protein_zu(S, protein)
         if z["identitaet"] < 30 or z["abgedeckt"] < 20:
@@ -375,6 +377,10 @@ def _strukturanalyse(P, E, ausgabe_ordner, B):
                 T["warnungen"].append(f"UniProt {uniprot} konnte nicht gelesen werden ({type(fehler).__name__}).")
     except ConnectionError as fehler:
         T["hinweis"] = str(fehler)
+        B("⚠️ " + T["hinweis"])
+        return T
+    except Exception as fehler:                 # 3D ist ein Zusatz: ein Fehler hier soll nicht den ganzen Bericht stoppen
+        T["hinweis"] = f"3D-Struktur übersprungen ({type(fehler).__name__}: {fehler})."
         B("⚠️ " + T["hinweis"])
         return T
 

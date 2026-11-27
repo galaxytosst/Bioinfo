@@ -88,6 +88,18 @@ def kennung_aus_text(text):
     return erstes.rstrip(",;:–-")
 
 
+def _gespeichert(pfad):
+    """True, wenn die Datei schon im Zwischenspeicher liegt (leere Reste eines abgebrochenen Downloads zählen nicht)."""
+    return os.path.exists(pfad) and os.path.getsize(pfad) > 0
+
+
+def _speichern(pfad, text):
+    """Erst in eine Hilfsdatei schreiben, dann umbenennen: So bleibt bei einem Abbruch keine halbe Datei liegen."""
+    with open(pfad + ".teil", "w") as f:
+        f.write(text)
+    os.replace(pfad + ".teil", pfad)
+
+
 def lade_struktur(eingabe, ordner="strukturen"):
     """Lädt eine Struktur. eingabe = PDB-ID (4HHB), UniProt-Nummer für AlphaFold (P68871 oder AF-P68871)
     oder Pfad zu einer .pdb/.pdb.gz-Datei. Gibt (pdb_text, quelle) zurück; Downloads werden im ordner gespeichert."""
@@ -103,7 +115,7 @@ def lade_struktur(eingabe, ordner="strukturen"):
     if _PDB_ID.match(kennung):
         kennung = kennung.upper()
         pfad = os.path.join(ordner, f"{kennung}.pdb")
-        if not os.path.exists(pfad):
+        if not _gespeichert(pfad):
             try:
                 text = _hole(f"https://files.rcsb.org/download/{kennung}.pdb")
             except urllib.error.HTTPError as fehler:
@@ -112,14 +124,13 @@ def lade_struktur(eingabe, ordner="strukturen"):
                                      f"Struktur ist so groß, dass es sie nur als mmCIF gibt (wird hier nicht "
                                      f"unterstützt).") from None
                 raise
-            with open(pfad, "w") as f:
-                f.write(text)
+            _speichern(pfad, text)
         with open(pfad) as f:
             return f.read(), f"PDB {kennung} (rcsb.org)"
     if _UNIPROT.match(kennung.upper()):
         kennung = kennung.upper()
         pfad = os.path.join(ordner, f"AF-{kennung}.pdb")
-        if not os.path.exists(pfad):
+        if not _gespeichert(pfad):
             try:
                 info = json.loads(_hole(f"https://alphafold.ebi.ac.uk/api/prediction/{kennung}"))
             except urllib.error.HTTPError as fehler:
@@ -128,8 +139,7 @@ def lade_struktur(eingabe, ordner="strukturen"):
                                      f"stimmt nicht).") from None
                 raise
             eintrag = info[0] if isinstance(info, list) else info
-            with open(pfad, "w") as f:
-                f.write(_hole(eintrag["pdbUrl"]))
+            _speichern(pfad, _hole(eintrag["pdbUrl"]))
         with open(pfad) as f:
             return f.read(), f"AlphaFold-Modell zu UniProt {kennung} (alphafold.ebi.ac.uk)"
     raise ValueError(f"„{eingabe}“ ist weder eine PDB-ID (4 Zeichen, z. B. 4HHB), noch eine UniProt-Nummer "
