@@ -92,7 +92,7 @@ Jedes Projekt ist ein Ordner. In der App (Box 1) bei PROJEKTE den Ordnernamen w�
 | `53_virus_papillomaviren` | Humane Papillomviren (HPV) haben ein ringförmiges DNA-Genom von knapp 8.000 Basen. | 6 |
 | `54_virus_pockenviren` | Pockenviren haben große DNA-Genome (185.000 bis 225.000 Basen) mit etwa 200 Genen. | 5 |
 | `55_virus_bakteriophagen` | Bakteriophagen sind Viren, die Bakterien befallen. | 7 |
-| `56_virus_masern_paramyxo` | Paramyxoviren: Masern, Mumps, Staupe (Hunde), Rinderpest (2011 als zweite Krankheit nach den Pocken ausgerottet), die Fledermausviren Nipah und Hendra sowie das RS-Virus (Atemwegsinfekte bei Säuglingen). | 7 |
+| `56_virus_masern_paramyxo` | Paramyxoviren: Masern, Mumps, Staupe (Hunde), Rinderpest (2011 als zweite Krankheit nach den Pocken ausgerottet), die Fledermausviren Nipah und Hendra und als Außengruppe das RS-Virus (Atemwegsinfekte bei Säuglingen, heute in der eigenen Familie Pneumoviridae). | 7 |
 | `57_virus_enteroviren_polio` | Enteroviren: Polio (Kinderlähmung, fast ausgerottet), Coxsackie-Viren (Hand-Fuß-Mund-Krankheit, Herzmuskelentzündung), Enterovirus D68 und Rhinoviren (Schnupfen). | 8 |
 | `58_virus_herpesviren` | Herpesviren bleiben nach der Infektion lebenslang im Körper. | 6 |
 | `59_virus_coronaviren_mensch` | Alle sieben Coronaviren, die Menschen infizieren, plus das Fledermausvirus RaTG13. | 8 |

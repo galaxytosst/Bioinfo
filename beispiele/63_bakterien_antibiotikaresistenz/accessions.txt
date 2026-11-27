@@ -1,7 +1,7 @@
 # NCBI-Nummer = Anzeigename. Die Sequenzen werden beim ersten Start automatisch geladen (Internet nötig).
-J01749.1    = pBR322 (mit TEM-1)
+NG_050145.1 = TEM-1 (wie in pBR322)
 AF148850.1  = SHV-1
 AF297554.1  = KPC-1
-FN396876.1  = NDM-1 (Plasmidstück)
+NG_049326.1 = NDM-1
 NG_047936.1 = mecA (MRSA)
 NG_048325.1 = vanA (VRE)
