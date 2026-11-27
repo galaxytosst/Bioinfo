@@ -439,21 +439,28 @@ def _stammbaum(sequenzen, namen, paare, distanzen_aln, E, ausgabe_ordner, B):
 # Mehrere Ordner → ein gemeinsamer Bericht
 # ======================================================================
 
-def analysiere_alle(eltern_ordner, ausgabe_ordner="ergebnisse_alle", **einstellungen):
-    """Analysiert jeden Unterordner von eltern_ordner einzeln und fasst alles in EINEM HTML-Bericht zusammen."""
-    from bericht import erstelle_html_bericht
+def projekte_im_ordner(eltern_ordner, ausgabe_ordner=None):
+    """Liste der Projektordner: jeder Unterordner ist ein Projekt; FASTA-Dateien direkt im
+    Ordner bilden zusätzlich ein eigenes Projekt."""
     unterordner = sorted(d for d in os.listdir(eltern_ordner)
                          if os.path.isdir(os.path.join(eltern_ordner, d)) and not d.startswith((".", "_"))
-                         and os.path.abspath(os.path.join(eltern_ordner, d)) != os.path.abspath(ausgabe_ordner))
+                         and (ausgabe_ordner is None or
+                              os.path.abspath(os.path.join(eltern_ordner, d)) != os.path.abspath(ausgabe_ordner)))
     eigene_dateien = [f for f in os.listdir(eltern_ordner)
                       if f.lower().endswith(FASTA_ENDUNGEN) and not f.startswith(".")
                       and f.lower() not in ("liesmich.txt", "readme.txt")]
-    if eigene_dateien or not unterordner:     # Dateien direkt im Ordner bilden ein eigenes Projekt
+    if eigene_dateien or not unterordner:
         unterordner = ["."] + unterordner
+    return [os.path.normpath(os.path.join(eltern_ordner, d)) for d in unterordner]
+
+
+def analysiere_projekte(projekt_ordner, ausgabe_ordner="ergebnisse_alle", **einstellungen):
+    """Analysiert mehrere Projektordner einzeln und fasst alles in EINEM HTML-Bericht zusammen.
+    Gibt (Liste der Ergebnisse, Pfad zum Bericht) zurück."""
+    from bericht import erstelle_html_bericht
     ergebnisse = []
-    for d in unterordner:
-        pfad = os.path.normpath(os.path.join(eltern_ordner, d))
-        ziel = os.path.join(ausgabe_ordner, os.path.basename(pfad))
+    for pfad in projekt_ordner:
+        ziel = os.path.join(ausgabe_ordner, os.path.basename(os.path.abspath(pfad)))
         print(f"▶ Analysiere {pfad} ...", end=" ", flush=True)
         start = time.time()
         R = analysiere_ordner(pfad, ziel, html=False, **{"ZEIGE_GRAFIK": False, "TEXT_AUSGABE": False, **einstellungen})
@@ -470,6 +477,11 @@ def analysiere_alle(eltern_ordner, ausgabe_ordner="ergebnisse_alle", **einstellu
     print(f"\n✅ Gemeinsamer Bericht: {pfad}")
     print(f"   Einzelergebnisse (CSV, FASTA, Bäume) je Projekt im Ordner '{ausgabe_ordner}/'.")
     return ergebnisse, pfad
+
+
+def analysiere_alle(eltern_ordner, ausgabe_ordner="ergebnisse_alle", **einstellungen):
+    """Analysiert jeden Unterordner von eltern_ordner einzeln und fasst alles in EINEM HTML-Bericht zusammen."""
+    return analysiere_projekte(projekte_im_ordner(eltern_ordner, ausgabe_ordner), ausgabe_ordner, **einstellungen)
 
 
 if __name__ == "__main__":
