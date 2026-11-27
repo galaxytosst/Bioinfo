@@ -140,6 +140,11 @@ def _lese_eingabe(text):
     if not text:
         raise ValueError("Das Feld ist leer. Füge eine Sequenz ein oder wähle ein Beispiel.")
     name, hinweise = "Eingabe", []
+    if text.startswith(">") and "\n" not in text:
+        # aus einem einzeiligen Feld eingefügt: Kopfzeile und Sequenz stehen in einer Zeile
+        treffer = re.match(r"^>(.*?)\s((?:[ACGTUNacgtun0-9]+\s*)+)$", text)
+        if treffer:
+            text = ">" + treffer.group(1) + "\n" + treffer.group(2)
     if text.startswith(">"):
         eintraege = [t for t in text.split(">") if t.strip()]
         kopf, _, rumpf = eintraege[0].partition("\n")
@@ -197,6 +202,233 @@ def _in_colab():
         return True
     except ImportError:
         return False
+
+
+def _ausfuehren(ausgabe, funktion):
+    """Führt eine Werkzeug-Funktion aus und zeigt ihr HTML (oder den Fehler) im Ausgabefeld."""
+    ausgabe.clear_output()
+    try:
+        _zeige(ausgabe, funktion())
+    except Exception as fehler:
+        _fehler_anzeigen(ausgabe, fehler)
+
+
+# ======================================================================
+# Die Werkzeuge als einfache Funktionen (geben HTML zurück).
+# Die Reiter der Oberfläche und die Formular-Zellen im Notebook rufen genau diese auf.
+# ======================================================================
+
+def sequenz_html(text):
+    """Sequenz umwandeln: Länge, GC, Gen, mRNA, Gegenstrang, Protein. Gibt HTML zurück."""
+    name, dna, war_rna, hinweise = _lese_eingabe(text)
+    z = wz.zusammensetzung(dna)
+    mrna = wz.transkribiere(dna)
+    gegen = wz.reverse_complement(dna)
+    protein_r1 = wz.uebersetze(dna, bis_stopp=False)
+    cds = wz.finde_cds(dna, min_as=10)
+    teile = [f"<h3 style='margin:4px 0'>{_e(name)}</h3>"]
+    teile += [_hinweis(_e(h), "warnung") for h in hinweise]
+    if war_rna:
+        teile.append(_hinweis("RNA erkannt (U statt T). Für die Werkzeuge wird sie als DNA (T) gelesen.",
+                              "info"))
+    teile.append(_tabelle(["Länge", "GC-Gehalt", "A", "C", "G", "T", "N"],
+                          [[f"{len(dna):,} Basen", f"{wz.gc_gehalt(dna):.1f} %"] +
+                           [f"{z.get(b, 0):,}" for b in "ACGTN"]], rechts=range(7)))
+    if cds:
+        s, e = cds
+        gen = dna[s - 1:e]
+        protein = wz.uebersetze(gen)
+        m = wz.transkribiere(gen)
+        n = min(20, len(gen) // 3)
+        kette = ("DNA (codierend)  5'-" + gen[:n * 3] + ("…" if len(gen) > n * 3 else "") + "\n" +
+                 "mRNA (T → U)     5'-" + m[:n * 3] + ("…" if len(m) > n * 3 else "") + "\n" +
+                 "Codons              " + "".join(m[i:i + 3] + " " for i in range(0, n * 3, 3)) + "\n" +
+                 "Protein             " + "".join(f" {a}  " for a in protein[:n]))
+        teile.append(f"<b>Gen gefunden</b> (längster ORF ab ATG auf dem + Strang): Position {s}–{e}, "
+                     f"{len(protein)} Aminosäuren")
+        teile.append(_pre(kette))
+        teile.append(f"<b>Protein ({len(protein)} AS)</b>" + _pre(_umbrechen(protein)))
+    else:
+        teile.append(_hinweis("Kein ORF ab 10 Aminosäuren auf dem + Strang gefunden. Unten steht die "
+                              "Übersetzung ab Position 1.", "info"))
+    teile.append(f"<b>mRNA</b> (Transkription, T → U)" + _pre(_umbrechen(mrna)))
+    teile.append(f"<b>Gegenstrang</b> (Reverse Complement, 5'→3')" + _pre(_umbrechen(gegen)))
+    teile.append(f"<b>Übersetzung ab Position 1</b> (Leseraster +1, * = Stopp)" +
+                 _pre(_umbrechen(protein_r1)))
+    downloads = (_text_download(_als_fasta(name + " mRNA", mrna), "mrna.fasta", "mRNA (FASTA)") +
+                 _text_download(_als_fasta(name + " Gegenstrang", gegen), "gegenstrang.fasta",
+                                "Gegenstrang (FASTA)"))
+    if cds:
+        downloads += _text_download(_als_fasta(name + " Protein", wz.uebersetze(dna[cds[0] - 1:cds[1]])),
+                                    "protein.fasta", "Protein (FASTA)")
+    teile.append(f"<div>{downloads}</div>")
+    return _kasten("".join(teile))
+
+
+def orfs_html(text, min_as=100, startcodons=("ATG",)):
+    """ORFs in allen 6 Leserastern, mit Karte und Tabelle. Gibt HTML zurück."""
+    name, dna, _r, hinweise = _lese_eingabe(text)
+    orfs = wz.finde_orfs(dna, startcodons, min_as=min_as)
+    teile = [f"<h3 style='margin:4px 0'>ORFs in {_e(name)}</h3>"]
+    teile += [_hinweis(_e(h), "warnung") for h in hinweise]
+    if not orfs:
+        teile.append(_hinweis(f"Kein ORF ab {min_as} Aminosäuren gefunden. "
+                              f"Schieb den Regler nach links.", "info"))
+        return _kasten("".join(teile))
+    from bericht import orf_karte_abbildung
+    fig = orf_karte_abbildung({"sequenzen": [{"name": name, "laenge": len(dna), "orfs": orfs}]})
+    teile.append(f"{len(orfs)} ORF(s) ab {min_as} Aminosäuren, Startcodons "
+                 f"{', '.join(startcodons)}. Nicht jeder ORF ist ein echtes Gen.")
+    teile.append(_bild(fig))
+    zeilen = []
+    for nr, o in enumerate(orfs[:200], 1):
+        pos = f"{o['start']}–{o['ende']}" if o["strang"] == "+" else f"c{o['start']}–{o['ende']}"
+        zeilen.append([nr, o["strang"], o["rahmen"], pos, f"{len(o['dna']):,}", len(o["protein"]),
+                       f"<code>{_e(o['protein'][:40])}{'…' if len(o['protein']) > 40 else ''}</code>"])
+    teile.append(_tabelle(["Nr", "Strang", "Rahmen", "Position", "bp", "AS", "Protein (Anfang)"], zeilen,
+                          rechts=(0, 4, 5)))
+    if len(orfs) > 200:
+        teile.append(f"… und {len(orfs) - 200} weitere (alle im Download).")
+    fasta = "".join(_als_fasta(f"ORF{nr} {o['strang']}{o['rahmen']} {o['start']}-{o['ende']} "
+                               f"{len(o['protein'])}AS", o["protein"]) for nr, o in enumerate(orfs, 1))
+    teile.append(f'<div>{_text_download(fasta, "orf_proteine.fasta", "Alle ORF-Proteine (FASTA)")}</div>')
+    return _kasten("".join(teile))
+
+
+def vergleich_html(text1, text2, modus="global", gegenstrang=True):
+    """Zwei Sequenzen alignieren, Unterschiede und Wirkung. Gibt HTML zurück."""
+    n1, a, _r1, h1 = _lese_eingabe(text1)
+    n2, b, _r2, h2 = _lese_eingabe(text2)
+    if len(a) * len(b) > MAX_ZELLEN_VERGLEICH:
+        raise ValueError(f"Zu lang für ein Alignment ({len(a):,} × {len(b):,} Basen). "
+                         f"Nimm kürzere Abschnitte oder die Analyse im Reiter 📊.")
+    teile = [_hinweis(_e(h), "warnung") for h in h1 + h2]
+    if gegenstrang:
+        k1 = wz.kmer_menge(a, 8)
+        gegen = wz.reverse_complement(b)
+        if len(k1 & wz.kmer_menge(gegen, 8)) > len(k1 & wz.kmer_menge(b, 8)):
+            b = gegen
+            teile.append(_hinweis("Sequenz 2 passt als <b>Gegenstrang</b> besser und wurde umgedreht "
+                                  "(Reverse Complement).", "info"))
+    erg = wz.ausrichten(a, b, modus)
+    st = wz.alignment_statistik(erg["a1"], erg["a2"])
+    teile.append(f"<h3 style='margin:4px 0'>{_e(n1)} ↔ {_e(n2)}</h3>")
+    teile.append(_tabelle(
+        ["Modus", "Länge 1", "Länge 2", "Score", "Identität", "Mismatches", "Lücken"],
+        [[modus, f"{len(a):,}", f"{len(b):,}", erg["score"], f"{st['identitaet']:.1f} %",
+          st["mismatches"], st["luecken"]]], rechts=range(1, 7)))
+    teile.append("<div><small>Identität im überlappenden Bereich. Bewertung wie NCBI BLASTN: Match +2, "
+                 "Mismatch −3, Lücke 5 + 2 pro Base.</small></div>")
+    if modus == "global" and min(len(a), len(b)) < 0.5 * max(len(a), len(b)):
+        teile.append(_hinweis("Die Sequenzen sind sehr unterschiedlich lang. Ein globales Alignment "
+                              "erzwingt große Lücken. Für ein kurzes Stück in einer langen Sequenz ist "
+                              "<b>Lokal</b> besser.", "warnung"))
+    if modus == "lokal":
+        teile.append(f"Bester gemeinsamer Abschnitt: Sequenz 1 ab Position {erg['start1']}, "
+                     f"Sequenz 2 ab Position {erg['start2']}.")
+    if modus == "global":
+        teile.append(_varianten_html(a, erg))
+    text = wz.alignment_als_text(erg)
+    zeilen = text.split("\n")
+    if len(zeilen) > 160:
+        text = "\n".join(zeilen[:160]) + f"\n… gekürzt ({len(zeilen) // 4} Blöcke insgesamt, " \
+                                          f"vollständig im Download)"
+    teile.append("<b>Alignment</b> (| gleich, . verschieden, Leerzeichen = Lücke)" + _pre(text))
+    teile.append(f'<div>{_text_download(wz.alignment_als_text(erg), "alignment.txt", "Alignment (Text)")}</div>')
+    return _kasten("".join(teile))
+
+
+def mutation_html(art="snv", position=20, neue_base="T", anzahl=1, einfuegen="A", sequenz_text=None):
+    """Mutation in ein Gen einbauen (Standard: HBB des Menschen). art = "snv", "del" oder "ins".
+    position = c.-Position (c.1 = A des ATG). Gibt HTML zurück."""
+    if sequenz_text is None:
+        name, seq = _erste_sequenz(os.path.join(BEISPIELE, "01_sichelzellanaemie", "1_HbA_normal_NM_000518.5.fasta"))
+    else:
+        name, seq, _r, _h = _lese_eingabe(sequenz_text)
+    cds = wz.finde_cds(seq, min_as=10)
+    if not cds:
+        raise ValueError("In dieser Sequenz wurde kein Gen (ORF ab ATG, mind. 10 AS) gefunden.")
+    s, e = cds
+    laenge = e - s + 1
+    c = position
+    if c > laenge:
+        raise ValueError(f"Das Gen ist nur {laenge} Basen lang (c.1 bis c.{laenge}).")
+    p = s - 1 + c                                 # Position in der ganzen Sequenz (ab 1)
+    art = art
+    if art == "snv":
+        ref, alt = seq[p - 1], neue_base
+        if ref == alt:
+            raise ValueError(f"An c.{c} steht schon {ref}. Wähle eine andere Base.")
+        v = {"art": "SNV", "start": p, "ende": p, "ref": ref, "alt": alt}
+        mutiert = seq[:p - 1] + alt + seq[p:]
+    elif art == "del":
+        n = anzahl
+        v = {"art": "Deletion", "start": p, "ende": p + n - 1, "ref": seq[p - 1:p - 1 + n], "alt": ""}
+        mutiert = seq[:p - 1] + seq[p - 1 + n:]
+    else:
+        ins = re.sub(r"[^ACGT]", "", einfuegen.upper().replace("U", "T"))
+        if not ins:
+            raise ValueError("Bitte Basen zum Einfügen angeben (A, C, G, T).")
+        v = {"art": "Insertion", "start": p, "ende": p + 1, "ref": "", "alt": ins}
+        mutiert = seq[:p] + ins + seq[p:]
+    original = dict(v)
+    v = wz.normalisiere_indels(seq, [v])[0]
+    wz.wirkung_der_varianten(seq, [v], cds)
+    p_ref = wz.uebersetze(seq[s - 1:e])
+    p_mut = wz.uebersetze(mutiert[s - 1:])
+    teile = [f"<h3 style='margin:4px 0'>{_e(name)}: <code>{_e(v['c'])}</code> "
+             f"{('<code>' + _e(v['p']) + '</code>') if v.get('p') else ''}</h3>"]
+    kategorie = v["wirkung"].split(" (")[0]
+    farbe = "fehler" if kategorie in ("Nonsense", "Frameshift", "Startcodon verändert") else \
+        "ok" if kategorie == "stumm" else "warnung"
+    teile.append(_hinweis(f"<b>Wirkung:</b> {_e(v['wirkung'])}", farbe))
+    if original["start"] != v["start"]:
+        teile.append(_hinweis("Hinweis: Nach der HGVS-Regel wird eine Lücke in einer Wiederholung "
+                              "möglichst weit Richtung 3'-Ende benannt, deshalb weicht die Position "
+                              "von deiner Eingabe ab. Das Ergebnis ist dieselbe Sequenz.", "info"))
+    if art == "snv":
+        k = (c - 1) // 3
+        codon_alt = seq[s - 1 + 3 * k:s - 1 + 3 * k + 3]
+        codon_neu = mutiert[s - 1 + 3 * k:s - 1 + 3 * k + 3]
+        teile.append(_tabelle(["Codon Nr.", "DNA vorher", "DNA nachher", "mRNA vorher", "mRNA nachher",
+                               "Aminosäure vorher", "nachher"],
+                              [[k + 1, codon_alt, codon_neu, wz.transkribiere(codon_alt),
+                                wz.transkribiere(codon_neu),
+                                wz.DREIBUCHSTABEN.get(wz.CODON_TABELLE.get(codon_alt, "X"), "?"),
+                                wz.DREIBUCHSTABEN.get(wz.CODON_TABELLE.get(codon_neu, "X"), "?")]]))
+    teile.append(f"<b>Protein:</b> {_e(wz.vergleiche_proteine(p_ref, p_mut))}")
+    teile.append(_protein_vergleich(p_ref, p_mut))
+    teile.append("<div>" + _text_download(_als_fasta(f"{name} {v['c']}", mutiert), "mutiert.fasta",
+                                          "mutierte Sequenz (FASTA)") + "</div>")
+    return _kasten("".join(teile))
+
+
+BEISPIEL_SEQUENZEN = {
+    "kurzes Testgen": ("kurz", None),
+    "HBB-mRNA des Menschen": ("01_sichelzellanaemie/1_HbA_normal_NM_000518.5.fasta", None),
+    "HbS (Sichelzelle)": ("01_sichelzellanaemie/2_varianten.fasta", "HbS"),
+    "β-Thalassämie Codon 41/42": ("01_sichelzellanaemie/2_varianten.fasta", "Codon41"),
+    "HBB Schimpanse": ("02_haemoglobin_arten/haemoglobin_beta_7_arten.fasta", "Pan troglodytes"),
+    "HBB Maus": ("02_haemoglobin_arten/haemoglobin_beta_7_arten.fasta", "Mus musculus"),
+    "Pest-Plasmid pPCP1": ("05_pest_plasmid/pPCP1_plasmid.fasta", None),
+}
+
+
+def beispiel_fasta(name):
+    """FASTA-Text eines eingebauten Beispiels (Namen siehe BEISPIEL_SEQUENZEN)."""
+    datei, teil = BEISPIEL_SEQUENZEN[name]
+    if datei == "kurz":
+        return ">kurzes Testgen\n" + KURZES_TESTGEN
+    return _als_fasta(*_erste_sequenz(os.path.join(BEISPIELE, datei), teil))
+
+
+def bericht_html(pfad, einbetten=True):
+    """Download-Knöpfe (Bericht als HTML, Ordner als ZIP) und der eingebettete Bericht."""
+    ordner = os.path.dirname(pfad)
+    zip_pfad = shutil.make_archive(ordner, "zip", ordner)
+    teile = (_download_link(pfad, "Bericht (HTML)", "text/html") +
+             _download_link(zip_pfad, "Alle Ergebnisse (ZIP)", "application/zip"))
+    return teile + (_bericht_einbetten(pfad) if einbetten else "")
 
 
 # ======================================================================
@@ -467,86 +699,10 @@ class _SequenzReiter:
             self.startcodons.value = STARTCODON_OPTIONEN[1][1]
 
     def zeige_umwandlung(self, _):
-        self.ausgabe.clear_output()
-        try:
-            name, dna, war_rna, hinweise = _lese_eingabe(self.eingabe.value)
-            z = wz.zusammensetzung(dna)
-            mrna = wz.transkribiere(dna)
-            gegen = wz.reverse_complement(dna)
-            protein_r1 = wz.uebersetze(dna, bis_stopp=False)
-            cds = wz.finde_cds(dna, min_as=10)
-            teile = [f"<h3 style='margin:4px 0'>{_e(name)}</h3>"]
-            teile += [_hinweis(_e(h), "warnung") for h in hinweise]
-            if war_rna:
-                teile.append(_hinweis("RNA erkannt (U statt T). Für die Werkzeuge wird sie als DNA (T) gelesen.",
-                                      "info"))
-            teile.append(_tabelle(["Länge", "GC-Gehalt", "A", "C", "G", "T", "N"],
-                                  [[f"{len(dna):,} Basen", f"{wz.gc_gehalt(dna):.1f} %"] +
-                                   [f"{z.get(b, 0):,}" for b in "ACGTN"]], rechts=range(7)))
-            if cds:
-                s, e = cds
-                gen = dna[s - 1:e]
-                protein = wz.uebersetze(gen)
-                m = wz.transkribiere(gen)
-                n = min(20, len(gen) // 3)
-                kette = ("DNA (codierend)  5'-" + gen[:n * 3] + ("…" if len(gen) > n * 3 else "") + "\n" +
-                         "mRNA (T → U)     5'-" + m[:n * 3] + ("…" if len(m) > n * 3 else "") + "\n" +
-                         "Codons              " + "".join(m[i:i + 3] + " " for i in range(0, n * 3, 3)) + "\n" +
-                         "Protein             " + "".join(f" {a}  " for a in protein[:n]))
-                teile.append(f"<b>Gen gefunden</b> (längster ORF ab ATG auf dem + Strang): Position {s}–{e}, "
-                             f"{len(protein)} Aminosäuren")
-                teile.append(_pre(kette))
-                teile.append(f"<b>Protein ({len(protein)} AS)</b>" + _pre(_umbrechen(protein)))
-            else:
-                teile.append(_hinweis("Kein ORF ab 10 Aminosäuren auf dem + Strang gefunden. Unten steht die "
-                                      "Übersetzung ab Position 1.", "info"))
-            teile.append(f"<b>mRNA</b> (Transkription, T → U)" + _pre(_umbrechen(mrna)))
-            teile.append(f"<b>Gegenstrang</b> (Reverse Complement, 5'→3')" + _pre(_umbrechen(gegen)))
-            teile.append(f"<b>Übersetzung ab Position 1</b> (Leseraster +1, * = Stopp)" +
-                         _pre(_umbrechen(protein_r1)))
-            downloads = (_text_download(_als_fasta(name + " mRNA", mrna), "mrna.fasta", "mRNA (FASTA)") +
-                         _text_download(_als_fasta(name + " Gegenstrang", gegen), "gegenstrang.fasta",
-                                        "Gegenstrang (FASTA)"))
-            if cds:
-                downloads += _text_download(_als_fasta(name + " Protein", wz.uebersetze(dna[cds[0] - 1:cds[1]])),
-                                            "protein.fasta", "Protein (FASTA)")
-            teile.append(f"<div>{downloads}</div>")
-            _zeige(self.ausgabe, _kasten("".join(teile)))
-        except Exception as fehler:
-            _fehler_anzeigen(self.ausgabe, fehler)
+        _ausfuehren(self.ausgabe, lambda: sequenz_html(self.eingabe.value))
 
     def zeige_orfs(self, _):
-        self.ausgabe.clear_output()
-        try:
-            name, dna, _r, hinweise = _lese_eingabe(self.eingabe.value)
-            orfs = wz.finde_orfs(dna, self.startcodons.value, min_as=self.orf_min.value)
-            teile = [f"<h3 style='margin:4px 0'>ORFs in {_e(name)}</h3>"]
-            teile += [_hinweis(_e(h), "warnung") for h in hinweise]
-            if not orfs:
-                teile.append(_hinweis(f"Kein ORF ab {self.orf_min.value} Aminosäuren gefunden. "
-                                      f"Schieb den Regler nach links.", "info"))
-                _zeige(self.ausgabe, _kasten("".join(teile)))
-                return
-            from bericht import orf_karte_abbildung
-            fig = orf_karte_abbildung({"sequenzen": [{"name": name, "laenge": len(dna), "orfs": orfs}]})
-            teile.append(f"{len(orfs)} ORF(s) ab {self.orf_min.value} Aminosäuren, Startcodons "
-                         f"{', '.join(self.startcodons.value)}. Nicht jeder ORF ist ein echtes Gen.")
-            teile.append(_bild(fig))
-            zeilen = []
-            for nr, o in enumerate(orfs[:200], 1):
-                pos = f"{o['start']}–{o['ende']}" if o["strang"] == "+" else f"c{o['start']}–{o['ende']}"
-                zeilen.append([nr, o["strang"], o["rahmen"], pos, f"{len(o['dna']):,}", len(o["protein"]),
-                               f"<code>{_e(o['protein'][:40])}{'…' if len(o['protein']) > 40 else ''}</code>"])
-            teile.append(_tabelle(["Nr", "Strang", "Rahmen", "Position", "bp", "AS", "Protein (Anfang)"], zeilen,
-                                  rechts=(0, 4, 5)))
-            if len(orfs) > 200:
-                teile.append(f"… und {len(orfs) - 200} weitere (alle im Download).")
-            fasta = "".join(_als_fasta(f"ORF{nr} {o['strang']}{o['rahmen']} {o['start']}-{o['ende']} "
-                                       f"{len(o['protein'])}AS", o["protein"]) for nr, o in enumerate(orfs, 1))
-            teile.append(f'<div>{_text_download(fasta, "orf_proteine.fasta", "Alle ORF-Proteine (FASTA)")}</div>')
-            _zeige(self.ausgabe, _kasten("".join(teile)))
-        except Exception as fehler:
-            _fehler_anzeigen(self.ausgabe, fehler)
+        _ausfuehren(self.ausgabe, lambda: orfs_html(self.eingabe.value, self.orf_min.value, self.startcodons.value))
 
 
 # ======================================================================
@@ -597,93 +753,53 @@ class _VergleichReiter:
         self.modus.value = "global"
 
     def vergleichen(self, _):
-        self.ausgabe.clear_output()
-        try:
-            n1, a, _r1, h1 = _lese_eingabe(self.s1.value)
-            n2, b, _r2, h2 = _lese_eingabe(self.s2.value)
-            if len(a) * len(b) > MAX_ZELLEN_VERGLEICH:
-                raise ValueError(f"Zu lang für ein Alignment ({len(a):,} × {len(b):,} Basen). "
-                                 f"Nimm kürzere Abschnitte oder die Analyse im Reiter 📊.")
-            teile = [_hinweis(_e(h), "warnung") for h in h1 + h2]
-            if self.gegenstrang.value:
-                k1 = wz.kmer_menge(a, 8)
-                gegen = wz.reverse_complement(b)
-                if len(k1 & wz.kmer_menge(gegen, 8)) > len(k1 & wz.kmer_menge(b, 8)):
-                    b = gegen
-                    teile.append(_hinweis("Sequenz 2 passt als <b>Gegenstrang</b> besser und wurde umgedreht "
-                                          "(Reverse Complement).", "info"))
-            erg = wz.ausrichten(a, b, self.modus.value)
-            st = wz.alignment_statistik(erg["a1"], erg["a2"])
-            teile.append(f"<h3 style='margin:4px 0'>{_e(n1)} ↔ {_e(n2)}</h3>")
-            teile.append(_tabelle(
-                ["Modus", "Länge 1", "Länge 2", "Score", "Identität", "Mismatches", "Lücken"],
-                [[self.modus.value, f"{len(a):,}", f"{len(b):,}", erg["score"], f"{st['identitaet']:.1f} %",
-                  st["mismatches"], st["luecken"]]], rechts=range(1, 7)))
-            teile.append("<div><small>Identität im überlappenden Bereich. Bewertung wie NCBI BLASTN: Match +2, "
-                         "Mismatch −3, Lücke 5 + 2 pro Base.</small></div>")
-            if self.modus.value == "global" and min(len(a), len(b)) < 0.5 * max(len(a), len(b)):
-                teile.append(_hinweis("Die Sequenzen sind sehr unterschiedlich lang. Ein globales Alignment "
-                                      "erzwingt große Lücken. Für ein kurzes Stück in einer langen Sequenz ist "
-                                      "<b>Lokal</b> besser.", "warnung"))
-            if self.modus.value == "lokal":
-                teile.append(f"Bester gemeinsamer Abschnitt: Sequenz 1 ab Position {erg['start1']}, "
-                             f"Sequenz 2 ab Position {erg['start2']}.")
-            if self.modus.value == "global":
-                teile.append(self._varianten_html(a, erg))
-            text = wz.alignment_als_text(erg)
-            zeilen = text.split("\n")
-            if len(zeilen) > 160:
-                text = "\n".join(zeilen[:160]) + f"\n… gekürzt ({len(zeilen) // 4} Blöcke insgesamt, " \
-                                                  f"vollständig im Download)"
-            teile.append("<b>Alignment</b> (| gleich, . verschieden, Leerzeichen = Lücke)" + _pre(text))
-            teile.append(f'<div>{_text_download(wz.alignment_als_text(erg), "alignment.txt", "Alignment (Text)")}</div>')
-            _zeige(self.ausgabe, _kasten("".join(teile)))
-        except Exception as fehler:
-            _fehler_anzeigen(self.ausgabe, fehler)
+        _ausfuehren(self.ausgabe, lambda: vergleich_html(self.s1.value, self.s2.value, self.modus.value,
+                                                          self.gegenstrang.value))
 
-    @staticmethod
-    def _varianten_html(referenz, erg):
-        varianten = wz.normalisiere_indels(referenz, wz.finde_varianten(erg["a1"], erg["a2"]))
-        if not varianten:
-            return _hinweis("Keine Unterschiede im überlappenden Bereich.", "ok")
-        cds = wz.finde_cds(referenz, min_as=10)
-        if cds and (cds[1] - cds[0] + 1) < 0.5 * len(referenz) and len(referenz) > 300:
-            cds = None                                  # längster ORF ist wohl kein echtes Gen
-        if cds:
-            wz.wirkung_der_varianten(referenz, varianten, cds)
-            kopf = f"Gen in Sequenz 1: Position {cds[0]}–{cds[1]}. "
+
+
+def _varianten_html(referenz, erg):
+    varianten = wz.normalisiere_indels(referenz, wz.finde_varianten(erg["a1"], erg["a2"]))
+    if not varianten:
+        return _hinweis("Keine Unterschiede im überlappenden Bereich.", "ok")
+    cds = wz.finde_cds(referenz, min_as=10)
+    if cds and (cds[1] - cds[0] + 1) < 0.5 * len(referenz) and len(referenz) > 300:
+        cds = None                                  # längster ORF ist wohl kein echtes Gen
+    if cds:
+        wz.wirkung_der_varianten(referenz, varianten, cds)
+        kopf = f"Gen in Sequenz 1: Position {cds[0]}–{cds[1]}. "
+    else:
+        kopf = "Kein Gen in Sequenz 1 erkannt, daher nur Positionen. "
+    zeilen = []
+    for v in varianten[:150]:
+        if v["art"] == "SNV":
+            aend = f"{v['ref']}→{v['alt']}"
+        elif v["art"] == "Deletion":
+            aend = f"−{v['ref'][:15]}{'…' if len(v['ref']) > 15 else ''} ({len(v['ref'])} bp)"
         else:
-            kopf = "Kein Gen in Sequenz 1 erkannt, daher nur Positionen. "
-        zeilen = []
-        for v in varianten[:150]:
-            if v["art"] == "SNV":
-                aend = f"{v['ref']}→{v['alt']}"
-            elif v["art"] == "Deletion":
-                aend = f"−{v['ref'][:15]}{'…' if len(v['ref']) > 15 else ''} ({len(v['ref'])} bp)"
-            else:
-                aend = f"+{v['alt'][:15]}{'…' if len(v['alt']) > 15 else ''} ({len(v['alt'])} bp)"
-            pos = str(v["start"]) if v["start"] == v["ende"] or v["art"] == "Insertion" else f"{v['start']}–{v['ende']}"
-            code = lambda t: f"<code>{_e(t)}</code>" if t else ""
-            zeilen.append([v["art"], pos, aend, code(v.get("c", "")), code(v.get("p", "")),
-                           _e(v.get("wirkung", ""))])
-        mehr = f"<br>… und {len(varianten) - 150} weitere." if len(varianten) > 150 else ""
-        protein = ""
-        if cds:
-            p_ref = wz.uebersetze(referenz[cds[0] - 1:cds[1]])
-            p_var = wz.uebersetze(_variante_rekonstruieren(erg, cds))
-            protein = f"<br><b>Protein:</b> {_e(wz.vergleiche_proteine(p_ref, p_var))}"
-            protein += _protein_vergleich(p_ref, p_var)
-        zaehler = {}
-        for v in varianten:
-            k = v.get("wirkung", v["art"]).split(" (")[0]
-            zaehler[k] = zaehler.get(k, 0) + 1
-        zusammen = " · ".join(f"{k}: {n}" for k, n in zaehler.items())
-        tabelle = _tabelle(["Art", "Position", "Änderung", "c. (Gen)", "p. (Protein)", "Wirkung"], zeilen) + mehr
-        offen = " open" if len(varianten) <= 15 else ""
-        return (f"<p style='margin:8px 0 2px'><b>{len(varianten)} Unterschied(e)</b> ({_e(zusammen)}). "
-                f"{kopf}{protein}</p>"
-                f"<details{offen}><summary style='cursor:pointer;color:#0072B2'>Tabelle aller Unterschiede"
-                f"</summary>{tabelle}</details>")
+            aend = f"+{v['alt'][:15]}{'…' if len(v['alt']) > 15 else ''} ({len(v['alt'])} bp)"
+        pos = str(v["start"]) if v["start"] == v["ende"] or v["art"] == "Insertion" else f"{v['start']}–{v['ende']}"
+        code = lambda t: f"<code>{_e(t)}</code>" if t else ""
+        zeilen.append([v["art"], pos, aend, code(v.get("c", "")), code(v.get("p", "")),
+                       _e(v.get("wirkung", ""))])
+    mehr = f"<br>… und {len(varianten) - 150} weitere." if len(varianten) > 150 else ""
+    protein = ""
+    if cds:
+        p_ref = wz.uebersetze(referenz[cds[0] - 1:cds[1]])
+        p_var = wz.uebersetze(_variante_rekonstruieren(erg, cds))
+        protein = f"<br><b>Protein:</b> {_e(wz.vergleiche_proteine(p_ref, p_var))}"
+        protein += _protein_vergleich(p_ref, p_var)
+    zaehler = {}
+    for v in varianten:
+        k = v.get("wirkung", v["art"]).split(" (")[0]
+        zaehler[k] = zaehler.get(k, 0) + 1
+    zusammen = " · ".join(f"{k}: {n}" for k, n in zaehler.items())
+    tabelle = _tabelle(["Art", "Position", "Änderung", "c. (Gen)", "p. (Protein)", "Wirkung"], zeilen) + mehr
+    offen = " open" if len(varianten) <= 15 else ""
+    return (f"<p style='margin:8px 0 2px'><b>{len(varianten)} Unterschied(e)</b> ({_e(zusammen)}). "
+            f"{kopf}{protein}</p>"
+            f"<details{offen}><summary style='cursor:pointer;color:#0072B2'>Tabelle aller Unterschiede"
+            f"</summary>{tabelle}</details>")
 
 
 def _variante_rekonstruieren(erg, cds):
@@ -768,67 +884,9 @@ class _MutationsReiter:
         return name, seq
 
     def einbauen(self, _):
-        self.ausgabe.clear_output()
-        try:
-            name, seq = self._gen()
-            cds = wz.finde_cds(seq, min_as=10)
-            if not cds:
-                raise ValueError("In dieser Sequenz wurde kein Gen (ORF ab ATG, mind. 10 AS) gefunden.")
-            s, e = cds
-            laenge = e - s + 1
-            c = self.position.value
-            if c > laenge:
-                raise ValueError(f"Das Gen ist nur {laenge} Basen lang (c.1 bis c.{laenge}).")
-            p = s - 1 + c                                 # Position in der ganzen Sequenz (ab 1)
-            art = self.art.value
-            if art == "snv":
-                ref, alt = seq[p - 1], self.neue_base.value
-                if ref == alt:
-                    raise ValueError(f"An c.{c} steht schon {ref}. Wähle eine andere Base.")
-                v = {"art": "SNV", "start": p, "ende": p, "ref": ref, "alt": alt}
-                mutiert = seq[:p - 1] + alt + seq[p:]
-            elif art == "del":
-                n = self.anzahl.value
-                v = {"art": "Deletion", "start": p, "ende": p + n - 1, "ref": seq[p - 1:p - 1 + n], "alt": ""}
-                mutiert = seq[:p - 1] + seq[p - 1 + n:]
-            else:
-                ins = re.sub(r"[^ACGT]", "", self.einfuegen.value.upper().replace("U", "T"))
-                if not ins:
-                    raise ValueError("Bitte Basen zum Einfügen angeben (A, C, G, T).")
-                v = {"art": "Insertion", "start": p, "ende": p + 1, "ref": "", "alt": ins}
-                mutiert = seq[:p] + ins + seq[p:]
-            original = dict(v)
-            v = wz.normalisiere_indels(seq, [v])[0]
-            wz.wirkung_der_varianten(seq, [v], cds)
-            p_ref = wz.uebersetze(seq[s - 1:e])
-            p_mut = wz.uebersetze(mutiert[s - 1:])
-            teile = [f"<h3 style='margin:4px 0'>{_e(name)}: <code>{_e(v['c'])}</code> "
-                     f"{('<code>' + _e(v['p']) + '</code>') if v.get('p') else ''}</h3>"]
-            kategorie = v["wirkung"].split(" (")[0]
-            farbe = "fehler" if kategorie in ("Nonsense", "Frameshift", "Startcodon verändert") else \
-                "ok" if kategorie == "stumm" else "warnung"
-            teile.append(_hinweis(f"<b>Wirkung:</b> {_e(v['wirkung'])}", farbe))
-            if original["start"] != v["start"]:
-                teile.append(_hinweis("Hinweis: Nach der HGVS-Regel wird eine Lücke in einer Wiederholung "
-                                      "möglichst weit Richtung 3'-Ende benannt, deshalb weicht die Position "
-                                      "von deiner Eingabe ab. Das Ergebnis ist dieselbe Sequenz.", "info"))
-            if art == "snv":
-                k = (c - 1) // 3
-                codon_alt = seq[s - 1 + 3 * k:s - 1 + 3 * k + 3]
-                codon_neu = mutiert[s - 1 + 3 * k:s - 1 + 3 * k + 3]
-                teile.append(_tabelle(["Codon Nr.", "DNA vorher", "DNA nachher", "mRNA vorher", "mRNA nachher",
-                                       "Aminosäure vorher", "nachher"],
-                                      [[k + 1, codon_alt, codon_neu, wz.transkribiere(codon_alt),
-                                        wz.transkribiere(codon_neu),
-                                        wz.DREIBUCHSTABEN.get(wz.CODON_TABELLE.get(codon_alt, "X"), "?"),
-                                        wz.DREIBUCHSTABEN.get(wz.CODON_TABELLE.get(codon_neu, "X"), "?")]]))
-            teile.append(f"<b>Protein:</b> {_e(wz.vergleiche_proteine(p_ref, p_mut))}")
-            teile.append(_protein_vergleich(p_ref, p_mut))
-            teile.append("<div>" + _text_download(_als_fasta(f"{name} {v['c']}", mutiert), "mutiert.fasta",
-                                                  "mutierte Sequenz (FASTA)") + "</div>")
-            _zeige(self.ausgabe, _kasten("".join(teile)))
-        except Exception as fehler:
-            _fehler_anzeigen(self.ausgabe, fehler)
+        text = None if self.referenz.value == "hbb" else self.app.sequenz.eingabe.value
+        _ausfuehren(self.ausgabe, lambda: mutation_html(self.art.value, self.position.value, self.neue_base.value,
+                                                         self.anzahl.value, self.einfuegen.value, text))
 
 
 def _protein_vergleich(p_ref, p_mut, breite=60):
@@ -943,12 +1001,8 @@ class Oberflaeche:
 
 def starte():
     """Zeigt die Oberfläche in der aktuellen Notebook-Zelle an."""
-    if _in_colab():
-        try:                                          # nötig für neuere ipywidgets-Versionen in Colab
-            from google.colab import output
-            output.enable_custom_widget_manager()
-        except Exception:
-            pass
+    print("Falls unter dieser Zeile keine Reiter erscheinen, nimm das Notebook App.ipynb (Formulare, "
+          "funktioniert ohne Zusatz-Technik).")
     app = Oberflaeche()
     display(app.widget)
     return app
