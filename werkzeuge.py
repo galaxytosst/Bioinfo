@@ -896,7 +896,8 @@ _BLOSUM62_TEXT = """
 def _lese_matrix(text):
     zeilen = [z.split() for z in text.strip().split("\n")]
     kopf = zeilen[0]
-    return {z[0]: {b: int(w) for b, w in zip(kopf, z[1:])} for z in zeilen[1:]}
+    return {z[0]: {b: (int(w) if w.lstrip("-").isdigit() else float(w)) for b, w in zip(kopf, z[1:])}
+            for z in zeilen[1:]}
 
 
 BLOSUM62 = _lese_matrix(_BLOSUM62_TEXT)
@@ -1010,3 +1011,115 @@ def protein_alignment_text(erg, breite=60):
         p1 += len(t1) - t1.count("-")
         p2 += len(t2) - t2.count("-")
     return "\n".join(zeilen)
+
+
+
+# ======================================================================
+# Protein-Kennzahlen aus der Sequenz (wie ExPASy ProtParam)
+# ======================================================================
+# Alle Werte gelten für die Kette, wie sie in der Sequenz steht (ohne Häm, Zucker, Phosphat usw.).
+# Achtung: Bei vielen Proteinen wird das Start-Methionin in der Zelle abgespalten (z. B. Hämoglobin β).
+
+# Masse der freien Aminosäuren (g/mol, mittlere Isotopenmassen); pro Peptidbindung geht ein Wasser ab
+AS_MASSE = {"A": 89.0932, "C": 121.1582, "D": 133.1027, "E": 147.1293, "F": 165.1891, "G": 75.0666,
+            "H": 155.1546, "I": 131.1729, "K": 146.1876, "L": 131.1729, "M": 149.2113, "N": 132.1179,
+            "P": 115.1305, "Q": 146.1445, "R": 174.201, "S": 105.0926, "T": 119.1192, "V": 117.1463,
+            "W": 204.2252, "Y": 181.1885}
+WASSER = 18.0153
+
+# Hydropathie nach Kyte & Doolittle (1982): positiv = wasserabweisend
+KYTE_DOOLITTLE = {"A": 1.8, "R": -4.5, "N": -3.5, "D": -3.5, "C": 2.5, "Q": -3.5, "E": -3.5, "G": -0.4,
+                  "H": -3.2, "I": 4.5, "L": 3.8, "K": -3.9, "M": 1.9, "F": 2.8, "P": -1.6, "S": -0.8,
+                  "T": -0.7, "W": -0.9, "Y": -1.3, "V": 4.2}
+
+# pK-Werte nach Bjellqvist (1993/1994), wie ExPASy ProtParam und Biopython.
+# Sie wurden für Gele (isoelektrische Fokussierung) bestimmt, nicht für das Zellinnere.
+PK_POSITIV = {"Nterm": 7.5, "K": 10.0, "R": 12.0, "H": 5.98}
+PK_NEGATIV = {"Cterm": 3.55, "D": 4.05, "E": 4.45, "C": 9.0, "Y": 10.0}
+PK_NTERM = {"A": 7.59, "M": 7.0, "S": 6.93, "P": 8.36, "T": 6.82, "V": 7.44, "E": 7.7}
+PK_CTERM = {"D": 4.55, "E": 4.75}
+
+# Instabilitätsindex nach Guruprasad, Reddy & Pandit (1990): Gewicht jedes Dipeptids (Zeile = erste AS)
+_DIWV_TEXT = """
+         A      C      D      E      F      G      H      I      K      L      M      N      P      Q      R      S      T      V      W      Y
+A        1  44.94  -7.49      1      1      1  -7.49      1      1      1      1      1  20.26      1      1      1      1      1      1      1
+C        1      1  20.26      1      1      1   33.6      1      1  20.26   33.6      1  20.26  -6.54      1      1   33.6  -6.54  24.68      1
+D        1      1      1      1  -6.54      1      1      1  -7.49      1      1      1      1      1  -6.54  20.26 -14.03      1      1      1
+E        1  44.94  20.26   33.6      1      1  -6.54  20.26      1      1      1      1  20.26  20.26      1  20.26      1      1 -14.03      1
+F        1      1  13.34      1      1      1      1      1 -14.03      1      1      1  20.26      1      1      1      1      1      1 33.601
+G    -7.49      1      1  -6.54      1  13.34      1  -7.49  -7.49      1      1  -7.49      1      1      1      1  -7.49      1  13.34  -7.49
+H        1      1      1      1  -9.37  -9.37      1  44.94  24.68      1      1  24.68  -1.88      1      1      1  -6.54      1  -1.88  44.94
+I        1      1      1  44.94      1      1  13.34      1  -7.49  20.26      1      1  -1.88      1      1      1      1  -7.49      1      1
+K        1      1      1      1      1  -7.49      1  -7.49      1  -7.49   33.6      1  -6.54  24.64   33.6      1      1  -7.49      1      1
+L        1      1      1      1      1      1      1      1  -7.49      1      1      1  20.26   33.6  20.26      1      1      1  24.68      1
+M    13.34      1      1      1      1      1  58.28      1      1      1  -1.88      1  44.94  -6.54  -6.54  44.94  -1.88      1      1  24.68
+N        1  -1.88      1      1 -14.03 -14.03      1  44.94  24.68      1      1      1  -1.88  -6.54      1      1  -7.49      1  -9.37      1
+P    20.26  -6.54  -6.54  18.38  20.26      1      1      1      1      1  -6.54      1  20.26  20.26  -6.54  20.26      1  20.26  -1.88      1
+Q        1  -6.54  20.26  20.26  -6.54      1      1      1      1      1      1      1  20.26  20.26      1  44.94      1  -6.54      1  -6.54
+R        1      1      1      1      1  -7.49  20.26      1      1      1      1  13.34  20.26  20.26  58.28  44.94      1      1  58.28  -6.54
+S        1   33.6      1  20.26      1      1      1      1      1      1      1      1  44.94  20.26  20.26  20.26      1      1      1      1
+T        1      1      1  20.26  13.34  -7.49      1      1      1      1      1 -14.03      1  -6.54      1      1      1      1 -14.03      1
+V        1      1 -14.03      1      1  -7.49      1      1  -1.88      1      1      1  20.26      1      1      1  -7.49      1      1  -6.54
+W   -14.03      1      1      1      1  -9.37  24.68      1      1  13.34  24.68  13.34      1      1      1      1 -14.03  -7.49      1      1
+Y    24.68      1  24.68  -6.54      1  -7.49  13.34      1      1      1  44.94      1  13.34      1 -15.91      1  -7.49      1  -9.37  13.34
+"""
+DIWV = _lese_matrix(_DIWV_TEXT)
+
+
+def ladung_bei_ph(protein, ph=7.0):
+    """Nettoladung der Kette bei einem pH-Wert (Henderson-Hasselbalch, pK-Werte nach Bjellqvist)."""
+    p = protein.upper().rstrip("*")
+    pos = dict(PK_POSITIV, Nterm=PK_NTERM.get(p[0], PK_POSITIV["Nterm"]))
+    neg = dict(PK_NEGATIV, Cterm=PK_CTERM.get(p[-1], PK_NEGATIV["Cterm"]))
+    anzahl = {a: p.count(a) for a in "KRHDECY"}
+    anzahl["Nterm"] = anzahl["Cterm"] = 1
+    plus = sum(anzahl[a] / (10 ** (ph - pk) + 1) for a, pk in pos.items())
+    minus = sum(anzahl[a] / (10 ** (pk - ph) + 1) for a, pk in neg.items())
+    return plus - minus
+
+
+def isoelektrischer_punkt(protein):
+    """pH, bei dem die Nettoladung 0 ist (Intervallhalbierung zwischen pH 0 und 14)."""
+    unten, oben = 0.0, 14.0
+    while oben - unten > 0.0001:
+        mitte = (unten + oben) / 2
+        if ladung_bei_ph(protein, mitte) > 0:
+            unten = mitte
+        else:
+            oben = mitte
+    return (unten + oben) / 2
+
+
+def protein_kennzahlen(protein):
+    """Kennzahlen eines Proteins aus seiner Sequenz. Gibt ein Dictionary zurück.
+    Unbekannte Zeichen (X, B, Z) werden für die Berechnungen ignoriert."""
+    p = "".join(a for a in protein.upper().rstrip("*") if a in AS_MASSE)
+    L = len(p)
+    if L < 2:
+        raise ValueError("Für Kennzahlen braucht man mindestens 2 Aminosäuren.")
+    anzahl = {a: p.count(a) for a in AS_MASSE}
+    prozent = {a: 100 * n / L for a, n in anzahl.items()}
+    masse = sum(AS_MASSE[a] for a in p) - (L - 1) * WASSER
+    instab = 10 / L * sum(DIWV[p[i]][p[i + 1]] for i in range(L - 1))
+    gruppen = {}
+    for a, n in anzahl.items():
+        g = EIGENSCHAFT[a]
+        gruppen[g] = gruppen.get(g, 0) + n
+    return {
+        "laenge": L,
+        "masse": masse,                                   # g/mol = Da
+        "pI": isoelektrischer_punkt(p),
+        "ladung_ph7": ladung_bei_ph(p, 7.0),
+        "ladung_ph74": ladung_bei_ph(p, 7.4),
+        "positiv": anzahl["K"] + anzahl["R"],             # wie ProtParam: Lys + Arg
+        "negativ": anzahl["D"] + anzahl["E"],             # Asp + Glu
+        "gravy": sum(KYTE_DOOLITTLE[a] for a in p) / L,
+        "instabilitaet": instab,
+        "stabil": instab < 40,
+        "aliphatisch": prozent["A"] + 2.9 * prozent["V"] + 3.9 * (prozent["I"] + prozent["L"]),
+        # Extinktionskoeffizient bei 280 nm (Pace et al. 1995): Trp 5500, Tyr 1490, Cystin 125
+        "extinktion": 5500 * anzahl["W"] + 1490 * anzahl["Y"],
+        "extinktion_cystine": 5500 * anzahl["W"] + 1490 * anzahl["Y"] + 125 * (anzahl["C"] // 2),
+        "anzahl": anzahl,
+        "gruppen_prozent": {g: 100 * n / L for g, n in gruppen.items()},
+    }

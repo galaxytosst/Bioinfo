@@ -34,7 +34,7 @@ from werkzeuge import (lese_ordner, gc_gehalt, zusammensetzung, finde_orfs, ausr
                        finde_varianten, wirkung_der_varianten, variante_auf_referenz_position,
                        vergleiche_proteine, lade_von_ncbi, normalisiere_indels)
 from werkzeuge import (protein_aus_dna, ausrichten_protein, protein_statistik, protein_unterschiede,
-                       protein_alignment_text, DREIBUCHSTABEN)
+                       protein_alignment_text, protein_kennzahlen, DREIBUCHSTABEN)
 
 ALLE_SCHRITTE = ("orfs", "alignment", "varianten", "protein", "stammbaum")
 SCHRITT_NAMEN = {"orfs": "ORF-Suche", "alignment": "DNA-Vergleich", "varianten": "Mutationen",
@@ -431,6 +431,22 @@ def _proteinvergleich(sequenzen, namen, E, ausgabe_ordner, B, max_proteine=40):
             f.write(f">{e['name']} {e['quelle']}\n")
             for i in range(0, len(e["protein"]), 70):
                 f.write(e["protein"][i:i + 70] + "\n")
+    # Kennzahlen jedes Proteins (Gewicht, pI, Ladung, Hydropathie, Instabilitätsindex)
+    with open(os.path.join(ausgabe_ordner, "protein_kennzahlen.csv"), "w") as csv:
+        csv.write("protein;laenge_as;masse_da;pI;ladung_ph7_4;lys_arg;asp_glu;gravy;instabilitaetsindex;"
+                  "aliphatischer_index;extinktion_280nm\n")
+        for e in mit:
+            k = e["kennzahlen"] = protein_kennzahlen(e["protein"])
+            csv.write(f"{e['name']};{k['laenge']};{k['masse']:.1f};{k['pI']:.2f};{k['ladung_ph74']:.2f};"
+                      f"{k['positiv']};{k['negativ']};{k['gravy']:.3f};{k['instabilitaet']:.2f};"
+                      f"{k['aliphatisch']:.2f};{k['extinktion']}\n")
+    if mit:
+        B(f"{'Protein':<48} {'kDa':>6} {'pI':>6} {'GRAVY':>7} {'Instabilität':>13}")
+        for e in mit:
+            k = e["kennzahlen"]
+            B(f"{e['name'][:48]:<48} {k['masse'] / 1000:>6.1f} {k['pI']:>6.2f} {k['gravy']:>7.2f} "
+              f"{k['instabilitaet']:>8.1f} ({'stabil' if k['stabil'] else 'instabil'})")
+        B("→ protein_kennzahlen.csv")
     if len(mit) < 2:
         P["hinweis"] = "Für einen Protein-Vergleich braucht man mindestens 2 Sequenzen mit erkennbarem Gen."
         B(P["hinweis"])

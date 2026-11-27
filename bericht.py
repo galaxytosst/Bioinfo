@@ -514,6 +514,20 @@ def _protein_html(P):
         zeilen.append([_e(e["name"]), _e(e["quelle"]), len(e["protein"]) if e["protein"] else "–"] + werte)
     h.append(_tabelle(["Name", "Protein aus", "Länge (AS)", "Identität %", "Ähnlichkeit %", "Unterschiede"],
                       zeilen, zahlspalten=(2, 3, 4, 5)))
+    mit_k = [e for e in P.get("proteine", []) if e.get("kennzahlen")]
+    if mit_k:
+        h.append("<h3>Eigenschaften der Proteine</h3>")
+        zeilen = [[_e(e["name"]), k["laenge"], f"{k['masse'] / 1000:.1f}", f"{k['pI']:.2f}",
+                   f"{k['ladung_ph74']:+.1f}", f"{k['gravy']:+.2f}",
+                   f"{k['instabilitaet']:.1f} ({'stabil' if k['stabil'] else 'instabil'})", f"{k['aliphatisch']:.0f}"]
+                  for e in mit_k for k in [e["kennzahlen"]]]
+        h.append(_tabelle(["Name", "Länge (AS)", "kDa", "pI", "Ladung bei pH 7,4", "GRAVY", "Instabilitätsindex",
+                           "Aliphatischer Index"], zeilen, zahlspalten=(1, 2, 3, 4, 5, 6, 7)))
+        h.append('<p class="leise">Berechnet aus der Sequenz wie ExPASy ProtParam, für die Kette ohne Häm, Zucker '
+                 'usw. und mit Start-Methionin (das in der Zelle oft abgespalten wird). <b>pI</b>: pH ohne Nettoladung. '
+                 '<b>GRAVY</b>: mittlere Hydropathie, negativ = wasserliebend. <b>Instabilitätsindex</b> unter 40 = '
+                 'als stabil vorhergesagt (grobe Faustregel). <b>Aliphatischer Index</b>: höher = eher hitzebeständig. '
+                 'Alle Werte auch in protein_kennzahlen.csv.</p>')
     if P.get("hinweis"):
         h.append(f'<div class="box">{_e(P["hinweis"])}</div>')
     abb = protein_unterschiede_abbildung(P)
@@ -548,6 +562,66 @@ def _protein_html(P):
 DREI = {"A": "Ala", "R": "Arg", "N": "Asn", "D": "Asp", "C": "Cys", "Q": "Gln", "E": "Glu", "G": "Gly", "H": "His",
         "I": "Ile", "L": "Leu", "K": "Lys", "M": "Met", "F": "Phe", "P": "Pro", "S": "Ser", "T": "Thr", "W": "Trp",
         "Y": "Tyr", "V": "Val", "*": "Ter", "X": "Xaa"}
+
+
+KENNZAHLEN_ZEILEN = [
+    ("Länge", lambda k: f"{k['laenge']} AS", ""),
+    ("Molekulargewicht", lambda k: f"{k['masse']:,.0f} Da ({k['masse'] / 1000:.1f} kDa)",
+     "Masse der Kette (1 Da = 1 g/mol)"),
+    ("Isoelektrischer Punkt (pI)", lambda k: f"{k['pI']:.2f}",
+     "pH, bei dem das Protein ungeladen ist. Bei niedrigerem pH ist es positiv, bei höherem negativ geladen."),
+    ("Nettoladung bei pH 7,4", lambda k: f"{k['ladung_ph74']:+.2f}",
+     "Schätzung für den pH des Blutes. Andere Ladung = andere Wanderung in der Elektrophorese."),
+    ("Lys + Arg / Asp + Glu", lambda k: f"{k['positiv']} / {k['negativ']}",
+     "Anzahl positiv bzw. negativ geladener Seitenketten"),
+    ("Hydropathie (GRAVY)", lambda k: f"{k['gravy']:+.3f}",
+     "Mittelwert nach Kyte-Doolittle. Negativ = wasserliebend (typisch für lösliche Proteine), "
+     "positiv = wasserabweisend (oft Membranproteine)."),
+    ("Instabilitätsindex", lambda k: f"{k['instabilitaet']:.1f} ({'stabil' if k['stabil'] else 'instabil'})",
+     "Unter 40 = als stabil vorhergesagt. Grobe Faustregel für das gereinigte Protein im Reagenzglas, "
+     "sagt nichts über einzelne Mutationen."),
+    ("Aliphatischer Index", lambda k: f"{k['aliphatisch']:.1f}",
+     "Anteil der Aminosäuren Ala, Val, Ile und Leu (gewichtet). Höher = eher hitzebeständig."),
+    ("Extinktionskoeffizient 280 nm", lambda k: f"{k['extinktion']:,} M⁻¹ cm⁻¹" if k["extinktion"] else "0",
+     "Für die Konzentrationsmessung im Photometer, aus Trp und Tyr (alle Cys reduziert)."),
+    ("unpolar / polar / basisch / sauer", lambda k: " / ".join(
+        f"{k['gruppen_prozent'].get(g, 0):.0f} %" for g in ("unpolar", "polar", "basisch (+)", "sauer (−)")),
+     "Anteil der Aminosäure-Gruppen"),
+]
+
+
+def kennzahlen_tabelle(liste):
+    """Kopf und Zeilen einer Tabelle für [(name, kennzahlen), ...]."""
+    kopf = ["Kennzahl"] + [name for name, _k in liste] + ["Bedeutung"]
+    zeilen = [[titel] + [f(k) for _n, k in liste] + [erklaerung] for titel, f, erklaerung in KENNZAHLEN_ZEILEN]
+    return kopf, zeilen
+
+
+def zusammensetzung_abbildung(liste):
+    """Balkendiagramm: Anteil jeder Aminosäure in %, nach Gruppen sortiert, für 1 bis 3 Proteine."""
+    from werkzeuge import EIGENSCHAFT
+    reihenfolge = "GAVLIMFWP" + "STCYNQ" + "KRH" + "DE"
+    gruppenfarbe = {"unpolar": "#E69F00", "polar": "#009E73", "basisch (+)": "#0072B2", "sauer (−)": "#D55E00"}
+    fig = Figure(figsize=(10, 3.2))
+    ax = fig.add_subplot()
+    breite = 0.8 / len(liste)
+    for i, (name, k) in enumerate(liste):
+        werte = [100 * k["anzahl"][a] / k["laenge"] for a in reihenfolge]
+        x = [j + (i - (len(liste) - 1) / 2) * breite for j in range(len(reihenfolge))]
+        ax.bar(x, werte, breite * 0.95, color=[gruppenfarbe[EIGENSCHAFT[a]] for a in reihenfolge],
+               alpha=1.0 if i == 0 else 0.5, edgecolor="white", linewidth=0.5,
+               label=name if len(liste) > 1 else None)
+    ax.set_xticks(range(len(reihenfolge)))
+    ax.set_xticklabels([DREI[a] for a in reihenfolge], fontsize=8)
+    ax.set_ylabel("Anteil (%)")
+    from matplotlib.patches import Patch
+    griffe = [Patch(color=c, label=g) for g, c in gruppenfarbe.items()]
+    titel = "Zusammensetzung" + (" (kräftig = Protein 1, blass = Protein 2)" if len(liste) > 1 else "")
+    ax.legend(handles=griffe, fontsize=8, ncol=4, loc="lower right", bbox_to_anchor=(1, 1.0), frameon=False)
+    ax.set_title(titel, fontsize=10, loc="left")
+    _achsen_stil(ax)
+    fig.tight_layout()
+    return fig
 
 
 def erstelle_html_bericht(ergebnisse, pfad):
@@ -585,6 +659,7 @@ def erstelle_html_bericht(ergebnisse, pfad):
 <p><b>c.</b>-Position: Position im Gen, c.1 ist das A des Startcodons ATG. <b>p.</b>: Änderung im Protein, z. B. p.Glu7Val = Glutamat an Position 7 wird zu Valin (HGVS-Schreibweise).</p>
 <p><b>stumm</b>: gleiche Aminosäure · <b>Missense</b>: andere Aminosäure · <b>Nonsense</b>: vorzeitiges Stoppcodon · <b>Frameshift</b>: Insertion/Deletion, die das Leseraster verschiebt · <b>In-frame</b>: Insertion/Deletion von ganzen Codons.</p>
 <p><b>Protein-Identität / Ähnlichkeit</b>: Identität zählt nur gleiche Aminosäuren. Ähnlichkeit zählt auch Austausche zwischen chemisch ähnlichen Aminosäuren (BLOSUM62 &gt; 0, z. B. Ile↔Val). <b>BLOSUM62</b>: Punktetabelle aus echten Proteinfamilien; positiv = häufiger Austausch, negativ = seltener.</p>
+<p><b>Protein-Kennzahlen</b>: <b>pI</b> (isoelektrischer Punkt) = pH, bei dem das Protein insgesamt ungeladen ist. Proteine mit anderer Ladung wandern in der Elektrophorese anders, so wurde 1949 der Unterschied zwischen HbA und HbS entdeckt. <b>GRAVY</b> = mittlere Hydropathie nach Kyte-Doolittle. <b>Instabilitätsindex</b> nach Guruprasad (1990): Faustregel aus Paaren benachbarter Aminosäuren, unter 40 = stabil; er sagt nichts über die Wirkung einzelner Mutationen.</p>
 <p><b>UPGMA</b> nimmt eine gleichmäßige Mutationsrate an (molekulare Uhr), <b>Neighbor-Joining</b> nicht. Ein Stammbaum ist eine Schätzung.</p>
 </div>
 </div></body></html>""")

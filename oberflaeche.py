@@ -469,6 +469,47 @@ def _blosum_marke(punkte):
         f'<span style="color:{farbe};font-weight:600">0</span>'
 
 
+def _kennzahlen_html(liste):
+    """Tabelle der Protein-Kennzahlen und Diagramm der Zusammensetzung für [(name, protein), ...]."""
+    import bericht
+    werte = [(name, wz.protein_kennzahlen(p)) for name, p in liste]
+    kopf, zeilen = bericht.kennzahlen_tabelle(werte)
+    teile = ["<h3 style='margin:12px 0 4px'>Eigenschaften (berechnet aus der Sequenz)</h3>"]
+    teile.append(_tabelle(kopf, [[_e(z) for z in zeile] for zeile in zeilen]))
+    if len(werte) == 2:
+        (n1, k1), (n2, k2) = werte
+        d = k2["ladung_ph74"] - k1["ladung_ph74"]
+        if abs(d) >= 0.5:
+            teile.append(_hinweis(
+                f"Die Ladung bei pH 7,4 unterscheidet sich um {d:+.1f}. Solche Proteine wandern in der "
+                f"Gel-Elektrophorese unterschiedlich weit. Genau so wurde 1949 entdeckt, dass sich das "
+                f"Sichelzell-Hämoglobin (HbS) vom normalen (HbA) unterscheidet.", "info"))
+        if k1["stabil"] != k2["stabil"]:
+            teile.append(_hinweis("Der Instabilitätsindex stuft die beiden Proteine verschieden ein. Das ist nur "
+                                  "ein grober Hinweis, keine Messung.", "warnung"))
+    if any(k["extinktion"] == 0 for _n, k in werte):
+        teile.append(_hinweis("Ein Protein ohne Trp und Tyr absorbiert bei 280 nm kaum. Seine Konzentration lässt "
+                              "sich so nicht messen.", "warnung"))
+    teile.append(_bild(bericht.zusammensetzung_abbildung(werte)))
+    teile.append("<div><small>Wie ExPASy ProtParam (pK-Werte nach Bjellqvist, Hydropathie nach Kyte-Doolittle, "
+                 "Instabilitätsindex nach Guruprasad 1990), gegen Biopython geprüft. Gilt für die nackte Kette, so wie "
+                 "sie eingegeben wurde: ohne Häm, Zucker oder Phosphatgruppen und mit Start-Methionin, das in der "
+                 "Zelle oft abgespalten wird. Echte Proteine bestehen oft aus mehreren Ketten (Hämoglobin: 2 α + 2 β)."
+                 "</small></div>")
+    return "".join(teile)
+
+
+def protein_eigenschaften_html(text):
+    """Kennzahlen eines einzelnen Proteins (Eingabe als Protein oder DNA/mRNA). Gibt HTML zurück."""
+    name, protein, quelle, hinweise = _lese_protein(text)
+    teile = [_hinweis(_e(h), "warnung") for h in hinweise]
+    teile.append(f"<h3 style='margin:4px 0'>{_e(name)}</h3><div>{_e(quelle)} · {len(protein)} Aminosäuren</div>")
+    teile.append(_kennzahlen_html([(name, protein)]))
+    teile.append("<b>Protein</b>" + _pre(_umbrechen(protein, 60, len(protein))))
+    teile.append("<div>" + _text_download(_als_fasta(name, protein), "protein.fasta", "Protein (FASTA)") + "</div>")
+    return _kasten("".join(teile))
+
+
 def protein_vergleich_html(text1, text2, modus="global"):
     """Zwei Proteine mit BLOSUM62 alignieren (wie BLASTP): Identität, Ähnlichkeit, jede Änderung mit
     chemischer Bewertung. Eingabe als Protein oder als DNA/mRNA (dann wird das Gen übersetzt)."""
@@ -503,6 +544,8 @@ def protein_vergleich_html(text1, text2, modus="global"):
         teile.append(f"Bester gemeinsamer Abschnitt: Protein 1 ab Aminosäure {erg['start1']}, "
                      f"Protein 2 ab Aminosäure {erg['start2']}.")
 
+    teile.append(_kennzahlen_html([(n1, p1), (n2, p2)]))
+    teile.append("<h3 style='margin:12px 0 4px'>Unterschiede</h3>")
     unterschiede = wz.protein_unterschiede(erg["a1"], erg["a2"])
     versatz = erg.get("start1", 1) - 1                 # lokal: Positionen in Protein 1 zählen ab dessen Anfang
     if not unterschiede:
