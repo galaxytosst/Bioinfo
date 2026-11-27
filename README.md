@@ -10,11 +10,11 @@ Schritt für Schritt Bioinformatik mit Python lernen, an echten biologischen Bei
 | `03_phylogenie/` | Teil 3: Stammbaum aus Distanzen (UPGMA, Neighbor-Joining) für 12 Frauenschuh-Orchideen |
 | `beispiele/` | Sechs Beispielprojekte, je ein Unterordner mit FASTA-Dateien, `LIESMICH.md` und `einstellungen.json`: Sichelzellanämie, Hämoglobin von 7 Arten, Coronaviren, Frauenschuh-Orchideen, Pest-Plasmid, Chloroplasten-Genom |
 | `daten/` | Platz für eigene Sequenzen (ein Unterordner pro Projekt) |
-| `werkzeuge.py` | Alle Funktionen als Modul (FASTA, Transkription, Translation, ORFs, Alignment inkl. affiner Lückenstrafe, Distanzen, Bäume, Varianten) |
-| `analyse.py` | Automatische Auswertung: `analysiere_ordner()` für ein Projekt, `analysiere_alle()` für viele Projekte |
+| `werkzeuge.py` | Alle Funktionen als Modul (FASTA, Transkription, Translation, ORFs, Alignment inkl. affiner Lückenstrafe, Protein-Alignment mit BLOSUM62, Distanzen, Bäume, Varianten) |
+| `analyse.py` | Automatische Auswertung: `analysiere_ordner()` für ein Projekt, `analysiere_alle()` für viele Projekte; mit `SCHRITTE` wählbar: alles, ORFs, DNA-Vergleich, Mutationen, Protein-Vergleich, Stammbaum |
 | `bericht.py` | Gemeinsamer HTML-Bericht mit Tabellen und Diagrammen |
-| `App.ipynb` | Bioinformatik-App: alle Werkzeuge als Colab-Formulare (Auswahllisten, Textfelder), Code ausgeblendet |
-| `oberflaeche.py` | Klick-Oberfläche für Colab: Analyse, Sequenz umwandeln, ORFs, Vergleichen, Mutations-Labor, NCBI-Download |
+| `App.ipynb` | Bioinformatik-App: alle Werkzeuge als Colab-Formulare (Auswahllisten, Textfelder), Code ausgeblendet. Box 1 = Analyse mit Auswahl der Analyseart, Box 6 = Protein-Vergleich |
+| `oberflaeche.py` | Klick-Oberfläche für Colab: Analyse, Sequenz umwandeln, ORFs, Vergleichen (DNA und Protein), Mutations-Labor, NCBI-Download |
 
 **Bedienung ohne Code (Formulare):** [App.ipynb in Colab öffnen](https://colab.research.google.com/github/galaxytosst/Bioinfo/blob/main/App.ipynb)
 

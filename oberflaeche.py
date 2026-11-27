@@ -462,6 +462,13 @@ def _lese_protein(text, min_as=30):
     return name, protein, "Proteinsequenz (eingegeben)", hinweise
 
 
+def _blosum_marke(punkte):
+    """BLOSUM62-Wert farbig: grün = häufiger Austausch, rot = seltener, grau = 0."""
+    farbe = "#009E73" if punkte > 0 else ("#D55E00" if punkte < 0 else "#6b6b6b")
+    return f'<span style="color:{farbe};font-weight:600">{punkte:+d}</span>' if punkte else \
+        f'<span style="color:{farbe};font-weight:600">0</span>'
+
+
 def protein_vergleich_html(text1, text2, modus="global"):
     """Zwei Proteine mit BLOSUM62 alignieren (wie BLASTP): Identität, Ähnlichkeit, jede Änderung mit
     chemischer Bewertung. Eingabe als Protein oder als DNA/mRNA (dann wird das Gen übersetzt)."""
@@ -504,17 +511,16 @@ def protein_vergleich_html(text1, text2, modus="global"):
         zaehl = {}
         for d in unterschiede:
             schluessel = d["art"] if d["art"] != "Austausch" else (
-                "Austausch, ähnlich" if d["punkte"] > 0 else "Austausch, unähnlich")
+                "Austausch, ähnlich (BLOSUM62 > 0)" if d["punkte"] > 0 else "Austausch, nicht ähnlich")
             zaehl[schluessel] = zaehl.get(schluessel, 0) + 1
         teile.append("<p><b>" + str(len(unterschiede)) + " Unterschied(e):</b> " +
-                     " · ".join(f"{k}: {n}" for k, n in zaehl.items()) + "</p>")
+                     " · ".join(f"{_e(k)}: {n}" for k, n in zaehl.items()) + "</p>")
         zeilen = []
         for d in unterschiede[:200]:
             pos, ende = d["position"] + versatz, d["ende"] + versatz
             if d["art"] == "Austausch":
                 text = f"{DREI.get(d['ref'], d['ref'])}{pos}{DREI.get(d['alt'], d['alt'])}"
-                farbe = "#009E73" if d["punkte"] > 0 else "#D55E00"
-                punkte = f'<span style="color:{farbe};font-weight:600">{d["punkte"]:+d}</span>'
+                punkte = _blosum_marke(d["punkte"])
             elif d["art"] == "Insertion":
                 text, punkte = f"+{d['alt']} (nach {pos})", ""
             else:

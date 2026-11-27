@@ -177,7 +177,7 @@ def protein_unterschiede_abbildung(P):
     ref_laenge = next((len(e["protein"]) for e in P["proteine"] if e["name"] == P["referenz"]), None)
     fig = Figure(figsize=(11, 0.45 * len(vergleiche) + 1.4))
     ax = fig.subplots()
-    arten = [("Austausch, ähnlich (BLOSUM62 > 0)", "#009E73"), ("Austausch, unähnlich (≤ 0)", "#D55E00"),
+    arten = [("Austausch, ähnlich (BLOSUM62 > 0)", "#009E73"), ("Austausch, nicht ähnlich (≤ 0)", "#D55E00"),
              ("Lücke (Insertion/Deletion)", "#7A7A7A")]
     gezeigt = set()
     for zeile, v in enumerate(vergleiche):
@@ -487,6 +487,13 @@ def _stammbaum_html(R):
     return "\n".join(h)
 
 
+def _blosum_marke(punkte):
+    """BLOSUM62-Wert farbig: grün = häufiger Austausch, rot = seltener, grau = 0."""
+    farbe = "#009E73" if punkte > 0 else ("#D55E00" if punkte < 0 else "#6b6b6b")
+    return f'<span style="color:{farbe};font-weight:600">{punkte:+d}</span>' if punkte else \
+        f'<span style="color:{farbe};font-weight:600">0</span>'
+
+
 def _protein_html(P):
     if not P:
         return ""
@@ -523,9 +530,7 @@ def _protein_html(P):
         for d in v["unterschiede"][:150]:
             if d["art"] == "Austausch":
                 text = f"{DREI.get(d['ref'], d['ref'])}{d['position']}{DREI.get(d['alt'], d['alt'])}"
-                punkte = d["punkte"]
-                farbe = "#009E73" if punkte > 0 else "#D55E00"
-                punkte = f'<span style="color:{farbe};font-weight:600">{punkte:+d}</span>'
+                punkte = _blosum_marke(d["punkte"])
             else:
                 if d["art"] == "Insertion":
                     text = f"+{d['alt']} (nach Pos. {d['position']})"

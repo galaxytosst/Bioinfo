@@ -975,13 +975,15 @@ def protein_unterschiede(a1, a2):
             punkte = BLOSUM62.get(x, {}).get(y, -4)
             e1, e2 = EIGENSCHAFT.get(x, "?"), EIGENSCHAFT.get(y, "?")
             if e1 == e2:
-                text = f"ähnlich: beide {e1}"
+                text = f"gleiche Gruppe ({e1})"
             else:
                 text = f"{e1} → {e2}"
             if punkte > 0:
                 text += ", häufiger Austausch (konservativ)"
             elif punkte < 0:
                 text += ", seltener Austausch"
+            else:
+                text += ", weder häufig noch selten"
             liste.append({"position": pos, "art": "Austausch", "ref": x, "alt": y, "punkte": punkte,
                           "bewertung": text})
     # zusammenhängende Lücken zusammenfassen
