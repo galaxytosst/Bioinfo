@@ -13,9 +13,12 @@ Schritt für Schritt Bioinformatik mit Python lernen, an echten biologischen Bei
 | `werkzeuge.py` | Alle Funktionen als Modul (FASTA, Transkription, Translation, ORFs, Alignment inkl. affiner Lückenstrafe, Distanzen, Bäume, Varianten) |
 | `analyse.py` | Automatische Auswertung: `analysiere_ordner()` für ein Projekt, `analysiere_alle()` für viele Projekte |
 | `bericht.py` | Gemeinsamer HTML-Bericht mit Tabellen und Diagrammen |
+| `App.ipynb` | Bioinformatik-App: alle Werkzeuge als Colab-Formulare (Auswahllisten, Textfelder), Code ausgeblendet |
 | `oberflaeche.py` | Klick-Oberfläche für Colab: Analyse, Sequenz umwandeln, ORFs, Vergleichen, Mutations-Labor, NCBI-Download |
 
-**Alle Werkzeuge mit einem Klick:** [Werkzeuge.ipynb in Colab öffnen](https://colab.research.google.com/github/galaxytosst/Bioinfo/blob/main/Werkzeuge.ipynb)
+**Bedienung ohne Code (Formulare):** [App.ipynb in Colab öffnen](https://colab.research.google.com/github/galaxytosst/Bioinfo/blob/main/App.ipynb)
+
+**Alle Werkzeuge mit Code und Erklärungen:** [Werkzeuge.ipynb in Colab öffnen](https://colab.research.google.com/github/galaxytosst/Bioinfo/blob/main/Werkzeuge.ipynb)
 
 **Andere Notebooks öffnen:** colab.research.google.com → *Datei → Notebook öffnen* → Reiter **GitHub** → dieses Repository auswählen.
 
