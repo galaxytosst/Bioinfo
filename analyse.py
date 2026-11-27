@@ -512,10 +512,10 @@ def _strukturanalyse(P, E, ausgabe_ordner, B):
     orte = {}
     for v in (P or {}).get("vergleiche", []):
         unterschiede = v["unterschiede"]
-        verkuerzt = v["laenge"] < 0.9 * len(protein) and unterschiede
-        if verkuerzt:                       # Stopp oder Frameshift: nur die erste veränderte Stelle zählt
-            erste = min(unterschiede, key=lambda d: d["position"])
-            unterschiede = [{**erste, "art": "Austausch", "alt": "verkürzt", "ende": erste["position"]}]
+        if v["laenge"] < 0.9 * len(protein):   # Stopp oder Frameshift: nur die erste veränderte Stelle zählt
+            pos = min([u["position"] for u in unterschiede] + [v["laenge"] + 1])
+            unterschiede = [{"art": "Austausch", "position": pos, "ende": pos, "ref": protein[pos - 1],
+                             "alt": "verkürzt", "punkte": None, "bewertung": "verkürztes Protein"}]
         for d in unterschiede:
             for pos in range(d["position"], d["ende"] + 1):
                 j = z["zuordnung"].get(pos)
@@ -772,8 +772,8 @@ def _proteinvergleich(sequenzen, namen, E, ausgabe_ordner, B, max_proteine=40, g
             erg = ausrichten_protein(ref["protein"], e["protein"])
             st = protein_statistik(erg["a1"], erg["a2"])
             unterschiede = protein_unterschiede(erg["a1"], erg["a2"])
-            P["vergleiche"].append({"name": e["name"], "laenge": len(e["protein"]), **st,
-                                    "unterschiede": unterschiede})
+            P["vergleiche"].append({"name": e["name"], **st, "alignment_laenge": st["laenge"],
+                                    "laenge": len(e["protein"]), "unterschiede": unterschiede})
             B(f"{e['name'][:48]:<48} {len(e['protein']):>6} {st['identitaet']:>9.1f}% {st['aehnlichkeit']:>11.1f}% "
               f"{len(unterschiede):>13}")
             for d in unterschiede:
